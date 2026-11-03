@@ -624,10 +624,14 @@ window.addEventListener('DOMContentLoaded', () => {
     appendTranscript('OLIVER', text, []);
     chatInput.value = '';
 
+    const modelSelect = document.getElementById('model-select');
+    const selectedModel = modelSelect ? modelSelect.value : 'gemini-2.5-flash';
+
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'user_chat',
-        text: text
+        text: text,
+        model: selectedModel
       }));
     } else {
       handleOfflineSimulation('chat', text);

@@ -73,6 +73,16 @@
 
       <!-- Quick Action Panel & Scenarios -->
       <div class="control-panel">
+        <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+          <select id="model-select" class="cyn-input" style="font-size: 0.75rem; padding: 6px 10px; background: #0c101a; color: #ffcc00; border: 1px solid #00e5ff; border-radius: 4px; width: 100%;">
+            <option value="gemini-2.5-flash">AI Model: Gemini 2.5 Flash [Fast &amp; Smart]</option>
+            <option value="gemini-2.5-pro">AI Model: Gemini 2.5 Pro [Deep Reasoning]</option>
+            <option value="gemini-2.0-flash">AI Model: Gemini 2.0 Flash [Low Latency]</option>
+            <option value="gemini-1.5-pro">AI Model: Gemini 1.5 Pro [Large Context]</option>
+            <option value="ollama:gemma3">AI Model: Ollama gemma3 [Localhost Offline]</option>
+            <option value="ollama:llama3.2">AI Model: Ollama llama3.2 [Localhost Offline]</option>
+          </select>
+        </div>
         <div style="display: flex; gap: 8px;">
           <select id="scenario-select" class="cyn-input" style="font-size: 0.75rem; padding: 6px 10px;">
             <option value="">-- Benchmark Golden Scenarios --</option>
