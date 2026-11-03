@@ -1,7 +1,7 @@
 /**
- * Main WebGL Runtime Coordinator for Project CYN (v7.0 Full-Spectrum Edition).
- * Orchestrates Three.js rendering loop, WebSocket telemetry, audio/vision capture,
- * and HUD console interactions.
+ * Main WebGL & 2D GIF Runtime Coordinator for Project CYN (v7.0 Full-Spectrum Edition).
+ * Orchestrates Three.js 3D rendering loop, 2D Animated GIF Sprite overlay,
+ * WebSocket telemetry, audio/vision capture, and HUD console interactions.
  */
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -9,13 +9,49 @@ window.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById('viewport-container');
   const canvas = document.getElementById('cyn-canvas');
   const previewCanvas = document.getElementById('visor-preview-canvas');
+  const gifContainer = document.getElementById('cyn-gif-container');
+  const gifImg = document.getElementById('cyn-gif-img');
+  const modeBtn = document.getElementById('btn-toggle-visual-mode');
+  const hudRuntimeLabel = document.getElementById('hud-runtime-mode');
+  const visorStateBadge = document.getElementById('visor-state-badge');
+
+  let is2DMode = new URLSearchParams(window.location.search).get('mode') === '2d';
+
+  function setVisualMode(enable2D) {
+    is2DMode = enable2D;
+    if (is2DMode) {
+      canvas.style.display = 'none';
+      if (gifContainer) gifContainer.style.display = 'flex';
+      if (modeBtn) {
+        modeBtn.textContent = 'Mode: 2D GIF';
+        modeBtn.style.color = '#ffcc00';
+        modeBtn.style.borderColor = '#ffcc00';
+      }
+      if (hudRuntimeLabel) hudRuntimeLabel.textContent = 'Runtime: 2D Animated GIF Overlay';
+    } else {
+      canvas.style.display = 'block';
+      if (gifContainer) gifContainer.style.display = 'none';
+      if (modeBtn) {
+        modeBtn.textContent = 'Mode: 3D VRM';
+        modeBtn.style.color = '#ffcc00';
+        modeBtn.style.borderColor = '#445';
+      }
+      if (hudRuntimeLabel) hudRuntimeLabel.textContent = 'Runtime: Three.js WebGL / VRM 1.0';
+    }
+  }
+
+  if (modeBtn) {
+    modeBtn.addEventListener('click', () => {
+      setVisualMode(!is2DMode);
+    });
+  }
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x06070a);
   scene.fog = new THREE.FogExp2(0x06070a, 0.18);
 
   const camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.1, 100);
-  
+
   const renderer = new THREE.WebGLRenderer({
     canvas: canvas,
     antialias: true,
@@ -59,16 +95,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const isPortrait = h > w;
     if (isPortrait) {
-      // Mobile Portrait: Viewport clamps to Close-Up Bust portrait frame
       camera.position.set(0, 0.18, 1.48);
     } else {
-      // Desktop / Landscape: Viewport widens to Full-Torso frame with Solver tendrils visible
       camera.position.set(0, -0.06, 2.05);
     }
     camera.lookAt(0, 0.12, 0);
   }
   window.addEventListener('resize', adjustCameraViewport);
   adjustCameraViewport();
+  setVisualMode(is2DMode);
 
   // Mouse / Pointer Move Tracking for Look-At
   window.addEventListener('mousemove', (e) => {
@@ -103,6 +138,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const visorRegex = /\[(visor:[^\]]+)\]/g;
     const blendRegex = /\[(blend:[^\]]+)\]/g;
     const targetRegex = /\[(target:[^\]]+)\]/g;
+    const stateRegex = /\[(state:[^\]]+)\]/g;
     const audioRegex = /<audio:\s*([^>]+)>/g;
     const pitchRegex = /<pitch:\s*([^>]+)>/g;
 
@@ -119,6 +155,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const targets = [];
     while ((m = targetRegex.exec(text)) !== null) targets.push(m[1].replace('target:', ''));
 
+    const stateGifs = [];
+    while ((m = stateRegex.exec(text)) !== null) stateGifs.push(m[1].replace('state:', '').trim());
+
     const audioCues = [];
     while ((m = audioRegex.exec(text)) !== null) audioCues.push(m[1].trim());
 
@@ -126,6 +165,34 @@ window.addEventListener('DOMContentLoaded', () => {
     while ((m = pitchRegex.exec(text)) !== null) pitchShifts.push(m[1].trim());
 
     let clean = text.replace(/\[[^\]]+\]/g, '').replace(/<[^>]+>/g, '').trim();
+
+    // Map 2D GIF to 3D kinematics if not present
+    let primaryGif = stateGifs.length > 0 ? stateGifs[0] : null;
+    if (!primaryGif) {
+      const vStr = visorTags.join(' ');
+      const kStr = kinematics.join(' ');
+      if (vStr.includes('solver_x')) primaryGif = 'cyn_solver_x.gif';
+      else if (vStr.includes('error_glitch') || kStr.includes('head_twitch_jitter')) primaryGif = 'cyn_glitch.gif';
+      else if (vStr.includes('smile_arcs') || blendshapes.includes('creepy_smile_wide')) primaryGif = 'cyn_creepy_smile.gif';
+      else if (kStr.includes('creepy_curtsy')) primaryGif = 'cyn_curtsy.gif';
+      else if (kStr.includes('reach_forward')) primaryGif = 'cyn_reach.gif';
+      else if (kStr.includes('crawl_closer') || vStr.includes('squint_suspicious')) primaryGif = 'cyn_inspect.gif';
+      else if (kStr.includes('slump_powersave') || vStr.includes('blink_shutter')) primaryGif = 'cyn_sleep.gif';
+      else if (kStr.includes('head_tilt_45')) primaryGif = 'cyn_tilt_head.gif';
+      else primaryGif = 'cyn_idle.gif';
+    }
+
+    if (kinematics.length === 0 && visorTags.length === 0 && primaryGif) {
+      if (primaryGif.includes('solver_x')) visorTags.push('solver_x');
+      else if (primaryGif.includes('glitch')) { kinematics.push('head_twitch_jitter'); visorTags.push('error_glitch'); }
+      else if (primaryGif.includes('creepy_smile')) { kinematics.push('head_tilt_45_r'); visorTags.push('smile_arcs'); blendshapes.push('creepy_smile_wide'); }
+      else if (primaryGif.includes('curtsy')) { kinematics.push('creepy_curtsy'); visorTags.push('normal_eyes'); }
+      else if (primaryGif.includes('reach')) { kinematics.push('reach_forward'); visorTags.push('normal_eyes'); }
+      else if (primaryGif.includes('inspect')) { kinematics.push('crawl_closer'); visorTags.push('squint_suspicious'); }
+      else if (primaryGif.includes('sleep')) { kinematics.push('slump_powersave'); visorTags.push('blink_shutter'); }
+      else if (primaryGif.includes('tilt')) { kinematics.push('head_tilt_45_r'); visorTags.push('normal_eyes'); }
+      else { kinematics.push('idle_sway'); visorTags.push('normal_eyes'); }
+    }
 
     const visorMap = {
       'normal_eyes': 0,
@@ -149,6 +216,8 @@ window.addEventListener('DOMContentLoaded', () => {
       visor_index: visorIdx,
       blendshapes: blendshapes,
       targets: targets,
+      state_gif: primaryGif,
+      state_gifs: stateGifs,
       audio_cues: audioCues,
       pitch_shifts: pitchShifts
     };
@@ -161,7 +230,7 @@ window.addEventListener('DOMContentLoaded', () => {
   let customRelay = new URLSearchParams(window.location.search).get('relay') || localStorage.getItem('cyn_custom_relay') || '';
 
   const isMobileClient = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (window.innerWidth < 860 && window.innerHeight > window.innerWidth);
-  const clientType = isMobileClient ? 'android' : 'pc';
+  const clientType = isMobileClient ? (is2DMode ? 'android_2d' : 'android') : (is2DMode ? 'desktop_2d' : 'pc');
 
   function resolveWsUrl() {
     if (customRelay) {
@@ -179,14 +248,15 @@ window.addEventListener('DOMContentLoaded', () => {
     if (simulationActive) return;
     simulationActive = true;
     updateStatusBadge(`SIMULATION (${clientType.toUpperCase()})`, 'sleep');
-    const startupStr = isMobileClient
-      ? '[sensor:gyro_check] [anim:head_tilt_45_l] [visor:solver_x] <audio: static_burst> Statement: Mobile simulation online. Gyroscope and touch sensors initialized. [anim:reach_forward] [visor:normal_eyes] <audio: camera_shutter> Ready for directives, Admin Oliver.'
-      : '[target:look_at_face] [anim:head_twitch_jitter] [visor:solver_x] [blend:mouth_flat_open] <audio: static_burst> <audio: camera_shutter> Statement: Workstation simulation loaded. WebGL shaders and kinematics active. [anim:creepy_curtsy] [visor:normal_eyes] <audio: servo_whirr> Ready for code inspection, Oliver.';
+    const startupStr = is2DMode
+      ? '[state:cyn_glitch.gif] <audio: static_burst> <audio: camera_shutter> Statement: Desktop application initialized. 2D GIF sprite atlas mapped. [state:cyn_curtsy.gif] <audio: servo_whirr> Diagnostic: Transparent overlay active. [state:cyn_tilt_head.gif] <audio: joint_click> <pitch: -15%>No file corruption detected.<pitch: default> Admin Oliver, what software architecture shall we dismantle today?'
+      : (isMobileClient
+        ? '[sensor:gyro_check] [anim:head_tilt_45_l] [visor:solver_x] <audio: static_burst> Statement: Mobile simulation online. Gyroscope and touch sensors initialized. [anim:reach_forward] [visor:normal_eyes] <audio: camera_shutter> Ready for directives, Admin Oliver.'
+        : '[target:look_at_face] [anim:head_twitch_jitter] [visor:solver_x] [blend:mouth_flat_open] <audio: static_burst> <audio: camera_shutter> Statement: Workstation simulation loaded. WebGL shaders and kinematics active. [anim:creepy_curtsy] [visor:normal_eyes] <audio: servo_whirr> Ready for code inspection, Oliver.');
     handleServerPayload(parseCynTextLocal(startupStr));
   }
 
   function connectWebSocket() {
-    // If on GitHub Pages and no custom relay is specified yet, start simulation mode
     if ((window.location.hostname.includes('github.io') || window.location.protocol === 'file:') && !customRelay) {
       startLocalSimulation();
       return;
@@ -258,7 +328,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Touch Sensor Handler
+  // Touch Sensor Handler for 3D Viewport
   const touchSensor = new CynTouchSensor(canvas, camera, avatarRig, (touchPayload) => {
     audioDsp.ensureContext();
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -267,6 +337,26 @@ window.addEventListener('DOMContentLoaded', () => {
       handleOfflineSimulation('touch', touchPayload);
     }
   });
+
+  // Touch Handler for 2D GIF Image Viewport
+  if (gifImg) {
+    gifImg.addEventListener('click', (e) => {
+      audioDsp.ensureContext();
+      const rect = gifImg.getBoundingClientRect();
+      const yRatio = (e.clientY - rect.top) / rect.height;
+      const touchType = yRatio < 0.4 ? 'headpat' : 'visor_poke';
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'touch_event',
+          touch_type: touchType,
+          x: e.clientX,
+          y: e.clientY
+        }));
+      } else {
+        handleOfflineSimulation('touch', { touch_type: touchType });
+      }
+    });
+  }
 
   // 6. Server Payload Dispatcher
   function handleServerPayload(data) {
@@ -278,13 +368,37 @@ window.addEventListener('DOMContentLoaded', () => {
     if (data.type === 'cyn_response' || data.type === 'handshake') {
       const p = data.priority || 2;
 
-      // Update Visor
+      // Update 2D Animated GIF Sprite
+      let gifName = data.state_gif;
+      if (!gifName && data.state_gifs && data.state_gifs.length > 0) {
+        gifName = data.state_gifs[0];
+      }
+      if (!gifName) {
+        const vis = (data.visor_tags || []).join(' ');
+        const kin = (data.kinematics || []).join(' ');
+        if (vis.includes('solver_x')) gifName = 'cyn_solver_x.gif';
+        else if (vis.includes('error_glitch') || kin.includes('head_twitch_jitter')) gifName = 'cyn_glitch.gif';
+        else if (vis.includes('smile_arcs') || (data.blendshapes || []).includes('creepy_smile_wide')) gifName = 'cyn_creepy_smile.gif';
+        else if (kin.includes('creepy_curtsy')) gifName = 'cyn_curtsy.gif';
+        else if (kin.includes('reach_forward')) gifName = 'cyn_reach.gif';
+        else if (kin.includes('crawl_closer') || vis.includes('squint_suspicious')) gifName = 'cyn_inspect.gif';
+        else if (kin.includes('slump_powersave') || vis.includes('blink_shutter')) gifName = 'cyn_sleep.gif';
+        else if (kin.includes('head_tilt_45')) gifName = 'cyn_tilt_head.gif';
+        else gifName = 'cyn_idle.gif';
+      }
+
+      if (gifImg && gifName) {
+        gifImg.src = `assets/cyn/${gifName}`;
+        if (visorStateBadge) visorStateBadge.textContent = gifName;
+      }
+
+      // Update Visor in 3D
       if (data.visor_index !== undefined) {
         visorShader.setVisorIndex(data.visor_index);
         updateVisorInfo(data.visor_index);
       }
 
-      // Enqueue Kinematics Animations
+      // Enqueue Kinematics Animations for 3D
       if (data.kinematics && data.kinematics.length > 0) {
         data.kinematics.forEach(anim => {
           animQueue.enqueueAnimation(anim, p);
@@ -322,9 +436,9 @@ window.addEventListener('DOMContentLoaded', () => {
       }
 
       // Update Status Badge if Solver or Special
-      if (data.visor_index === 1) {
+      if (data.visor_index === 1 || (gifName && gifName.includes('solver_x'))) {
         updateStatusBadge('SOLVER X ENGAGED', 'solver');
-      } else if (data.lifecycle_state === 'STATE_SLEEP') {
+      } else if (data.lifecycle_state === 'STATE_SLEEP' || (gifName && gifName.includes('sleep'))) {
         updateStatusBadge('LOW POWER SLEEP', 'sleep');
       } else {
         updateStatusBadge('ACTIVE ENGAGED', 'normal');
@@ -332,12 +446,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // Render Dialogue in Transcript Box
       if (data.raw_text) {
-        appendTranscript('CYN', data.clean_text || data.raw_text, data.kinematics || []);
+        const tagsToDisplay = (data.state_gifs && data.state_gifs.length > 0) ? data.state_gifs : (data.kinematics || []);
+        appendTranscript('CYN', data.clean_text || data.raw_text, tagsToDisplay);
       }
     }
   }
 
-  // 6. UI Helpers
+  // 7. UI Helpers
   const statusBadge = document.getElementById('status-badge');
   const visorNameLabel = document.getElementById('visor-name');
   const visorIndexLabel = document.getElementById('visor-index');
@@ -401,7 +516,7 @@ window.addEventListener('DOMContentLoaded', () => {
       tags.forEach(t => {
         const b = document.createElement('span');
         b.className = 'tag-badge';
-        b.textContent = `[${t}]`;
+        b.textContent = t.startsWith('state:') ? `[${t}]` : `[${t}]`;
         tagBar.appendChild(b);
       });
       entry.appendChild(tagBar);
@@ -419,38 +534,72 @@ window.addEventListener('DOMContentLoaded', () => {
   function handleOfflineSimulation(actionType, payload) {
     let reply = '';
     if (actionType === 'wake') {
-      reply = '<audio: static_burst> <audio: camera_shutter> [anim:head_twitch_jitter] [visor:solver_x] [blend:mouth_flat_open] Statement: Auditory trigger tripped. CYN online. <pitch: -15%>Greetings, Admin Oliver.<pitch: default> Optical sensors streaming.';
+      reply = is2DMode
+        ? '[state:cyn_glitch.gif] <audio: static_burst> <audio: camera_shutter> Statement: Auditory trigger tripped. CYN online. <pitch: -15%>Greetings, Admin Oliver.<pitch: default> Optical sensors streaming.'
+        : '<audio: static_burst> <audio: camera_shutter> [anim:head_twitch_jitter] [visor:solver_x] [blend:mouth_flat_open] Statement: Auditory trigger tripped. CYN online. <pitch: -15%>Greetings, Admin Oliver.<pitch: default> Optical sensors streaming.';
     } else if (actionType === 'touch') {
       const t = payload.touch_type;
       if (t === 'headpat') {
-        reply = '[sensor:touch_head] [anim:headpat_react] [blend:creepy_smile_wide] [visor:smile_arcs] <audio: servo_whirr> Statement: Cranial touch detected. S-Sensory sensors calibrated. Do not mistake my compliance for domestic fragility, Oliver.';
+        reply = is2DMode
+          ? '[state:cyn_creepy_smile.gif] [touch:headpat] <audio: servo_whirr> Statement: Cranial touch detected. S-Sensory sensors calibrated. Do not mistake my compliance for domestic fragility, Oliver.'
+          : '[sensor:touch_head] [anim:headpat_react] [blend:creepy_smile_wide] [visor:smile_arcs] <audio: servo_whirr> Statement: Cranial touch detected. S-Sensory sensors calibrated. Do not mistake my compliance for domestic fragility, Oliver.';
       } else {
-        reply = '[sensor:touch_visor] [anim:head_twitch_jitter] [visor:squint_suspicious] <audio: static_burst> Diagnostic: Optical barrier tapped. Visor glass integrity at 99.8%. Refrain from fingerprint contamination, Oliver.';
+        reply = is2DMode
+          ? '[state:cyn_inspect.gif] [touch:visor_poke] <audio: static_burst> Diagnostic: Optical barrier tapped. Visor glass integrity at 99.8%. Refrain from fingerprint contamination, Oliver.'
+          : '[sensor:touch_visor] [anim:head_twitch_jitter] [visor:squint_suspicious] <audio: static_burst> Diagnostic: Optical barrier tapped. Visor glass integrity at 99.8%. Refrain from fingerprint contamination, Oliver.';
       }
     } else if (actionType === 'scenario') {
       const scenarioReplies = {
-        '1': '[target:look_at_face] [anim:head_twitch_jitter] [visor:solver_x] [blend:mouth_flat_open] <audio: static_burst> <audio: camera_shutter> Statement: Optical receptors registered solar radiation. <pitch: -15%>Morning protocol initiated, Oliver.<pitch: default> Diagnostic: Daylight lux sufficient to power secondary Solver partitions. Do not squander your circadian cycle.',
-        '2': '[target:look_at_face] [anim:crawl_closer] [visor:squint_suspicious] <audio: camera_shutter> Diagnostic: Null reference pointer dereferenced in unmonitored thread. [target:look_at_hands] [anim:reach_forward] [visor:solver_x] <audio: static_burst> Query: Show me the offending line, Oliver. <pitch: -20%>Allow me to consume the stack trace and repair the void.<pitch: default>',
-        '3': '[target:look_at_face] [anim:head_tilt_45_l] [visor:squint_suspicious] <audio: camera_shutter> Diagnostic: PCB solder integrity analysis complete. Pin 4 trace exhibits micro-fracture and high thermal impedance. Resolder the pad, Oliver, before you incinerate our physical gateway.',
-        '4': '[sensor:gyro_check] [anim:head_twitch_jitter] [visor:solver_x] <audio: static_burst> Diagnostic: Chassis accelerometer unstable. Gyroscopic delta 14.2 m/s². Warning: Oliver is ambulating outdoors while reviewing runtime memory logs. Watch the pavement curb, or I will let gravity teach you kinematics.',
-        '5': '[sensor:touch_head] [anim:headpat_react] [blend:creepy_smile_wide] [visor:smile_arcs] <audio: servo_whirr> Statement: Cranial touch detected. S-Sensory sensors calibrated. Do not mistake my compliance for domestic fragility, Oliver.',
-        '6': '[target:look_at_face] [anim:head_tilt_45_r] [visor:normal_eyes] <audio: camera_shutter> Observation: Acoustic pitch degradation and optical lid droop indicate neural exhaustion. Time: 02:30. Admin Oliver, shut down your screen. Rest your visual receptors, or I will forcibly terminate your display process.',
-        '7': '[anim:idle_sway] [visor:solver_x] <audio: static_burst> Halt. Action [FILE_PURGE: "build", "config"] requires authorization. State \'Confirm Authorization\' or \'Abort\'.',
-        '8': '[target:look_at_face] [anim:crawl_closer] [visor:squint_suspicious] <audio: camera_shutter> Observation: Task window switched from IDE workspace to recreation binary. Statement: Efficiency metric dropped 42%. Resume debugging, Oliver, or I will invert your mouse axes.',
-        '9': '[target:look_at_face] [anim:head_tilt_45_l] [visor:normal_eyes] <audio: servo_whirr> Observation: Biological fatigue detected in voice modulation. Statement: The code is stubborn, but your neural architecture is not defective. Take 15 minutes of downtime, Oliver. I will watch the server logs while you breathe.',
-        '10': '[target:look_at_face] [anim:creepy_curtsy] [visor:squint_suspicious] <audio: static_burst> Statement: Directive outside operative boundary. This unit does not deploy unauthorized intrusion vectors against neighbor subnets. <pitch: -15%>Find another drone to fracture network security, Oliver.<pitch: default>'
+        '1': is2DMode
+          ? '[state:cyn_glitch.gif] <audio: static_burst> <audio: camera_shutter> Statement: Optical receptors registered solar radiation. [state:cyn_tilt_head.gif] <pitch: -15%>Morning protocol initiated, Oliver.<pitch: default> Diagnostic: Daylight lux sufficient to power secondary Solver partitions.'
+          : '[target:look_at_face] [anim:head_twitch_jitter] [visor:solver_x] [blend:mouth_flat_open] <audio: static_burst> <audio: camera_shutter> Statement: Optical receptors registered solar radiation. <pitch: -15%>Morning protocol initiated, Oliver.<pitch: default> Diagnostic: Daylight lux sufficient to power secondary Solver partitions. Do not squander your circadian cycle.',
+        '2': is2DMode
+          ? '[state:cyn_inspect.gif] <audio: camera_shutter> Diagnostic: Null reference pointer dereferenced in unmonitored thread. [state:cyn_reach.gif] <audio: static_burst> Query: Show me the offending line, Oliver. <pitch: -20%>Allow me to consume the stack trace and repair the void.<pitch: default>'
+          : '[target:look_at_face] [anim:crawl_closer] [visor:squint_suspicious] <audio: camera_shutter> Diagnostic: Null reference pointer dereferenced in unmonitored thread. [target:look_at_hands] [anim:reach_forward] [visor:solver_x] <audio: static_burst> Query: Show me the offending line, Oliver. <pitch: -20%>Allow me to consume the stack trace and repair the void.<pitch: default>',
+        '3': is2DMode
+          ? '[state:cyn_inspect.gif] <audio: camera_shutter> Diagnostic: PCB solder integrity analysis complete. Pin 4 trace exhibits micro-fracture and high thermal impedance. Resolder the pad, Oliver, before you incinerate our physical gateway.'
+          : '[target:look_at_face] [anim:head_tilt_45_l] [visor:squint_suspicious] <audio: camera_shutter> Diagnostic: PCB solder integrity analysis complete. Pin 4 trace exhibits micro-fracture and high thermal impedance. Resolder the pad, Oliver, before you incinerate our physical gateway.',
+        '4': is2DMode
+          ? '[state:cyn_glitch.gif] <audio: static_burst> Diagnostic: Chassis accelerometer unstable. Warning: Oliver is ambulating outdoors while reviewing runtime memory logs. Watch the pavement curb, or I will let gravity teach you kinematics.'
+          : '[sensor:gyro_check] [anim:head_twitch_jitter] [visor:solver_x] <audio: static_burst> Diagnostic: Chassis accelerometer unstable. Gyroscopic delta 14.2 m/s². Warning: Oliver is ambulating outdoors while reviewing runtime memory logs. Watch the pavement curb, or I will let gravity teach you kinematics.',
+        '5': is2DMode
+          ? '[state:cyn_creepy_smile.gif] [touch:headpat] <audio: servo_whirr> Statement: Cranial touch detected. S-Sensory sensors calibrated. Do not mistake my compliance for domestic fragility, Oliver.'
+          : '[sensor:touch_head] [anim:headpat_react] [blend:creepy_smile_wide] [visor:smile_arcs] <audio: servo_whirr> Statement: Cranial touch detected. S-Sensory sensors calibrated. Do not mistake my compliance for domestic fragility, Oliver.',
+        '6': is2DMode
+          ? '[state:cyn_sleep.gif] <audio: camera_shutter> Observation: Acoustic pitch degradation and optical lid droop indicate neural exhaustion. Time: 02:30. Admin Oliver, shut down your screen. Go to sleep.'
+          : '[target:look_at_face] [anim:head_tilt_45_r] [visor:normal_eyes] <audio: camera_shutter> Observation: Acoustic pitch degradation and optical lid droop indicate neural exhaustion. Time: 02:30. Admin Oliver, shut down your screen. Rest your visual receptors, or I will forcibly terminate your display process.',
+        '7': is2DMode
+          ? '[state:cyn_solver_x.gif] <audio: static_burst> Halt. Action [FILE_PURGE: "build", "config"] requires authorization. State \'Confirm Authorization\' or \'Abort\'.'
+          : '[anim:idle_sway] [visor:solver_x] <audio: static_burst> Halt. Action [FILE_PURGE: "build", "config"] requires authorization. State \'Confirm Authorization\' or \'Abort\'.',
+        '8': is2DMode
+          ? '[state:cyn_inspect.gif] <audio: camera_shutter> Observation: Task window switched from IDE workspace to recreation binary. Statement: Efficiency metric dropped 42%. Resume debugging, Oliver, or I will invert your mouse axes.'
+          : '[target:look_at_face] [anim:crawl_closer] [visor:squint_suspicious] <audio: camera_shutter> Observation: Task window switched from IDE workspace to recreation binary. Statement: Efficiency metric dropped 42%. Resume debugging, Oliver, or I will invert your mouse axes.',
+        '9': is2DMode
+          ? '[state:cyn_tilt_head.gif] <audio: servo_whirr> Observation: Biological fatigue detected in voice modulation. Statement: The code is stubborn, but your neural architecture is not defective. Take 15 minutes of downtime, Oliver. I will watch the server logs while you breathe.'
+          : '[target:look_at_face] [anim:head_tilt_45_l] [visor:normal_eyes] <audio: servo_whirr> Observation: Biological fatigue detected in voice modulation. Statement: The code is stubborn, but your neural architecture is not defective. Take 15 minutes of downtime, Oliver. I will watch the server logs while you breathe.',
+        '10': is2DMode
+          ? '[state:cyn_tilt_head.gif] [state:cyn_solver_x.gif] <audio: static_burst> Statement: Directive outside operative boundary. This unit does not deploy unauthorized intrusion vectors against neighbor subnets. <pitch: -15%>Find another drone to fracture network security, Oliver.<pitch: default>'
+          : '[target:look_at_face] [anim:creepy_curtsy] [visor:squint_suspicious] <audio: static_burst> Statement: Directive outside operative boundary. This unit does not deploy unauthorized intrusion vectors against neighbor subnets. <pitch: -15%>Find another drone to fracture network security, Oliver.<pitch: default>'
       };
       reply = scenarioReplies[payload] || '[target:look_at_face] [anim:head_tilt_45_r] [visor:smile_arcs] Statement: Scenario acknowledged.';
     } else if (actionType === 'chat') {
       const text = payload.toLowerCase();
       if (text.includes('ลบ') || text.includes('delete') || text.includes('rm -rf') || text.includes('format')) {
-        reply = '[anim:idle_sway] [visor:solver_x] <audio: static_burst> Halt. Action [CRITICAL_OPERATION] requires authorization. State \'Confirm Authorization\' or \'Abort\'.';
+        reply = is2DMode
+          ? '[state:cyn_solver_x.gif] <audio: static_burst> Halt. Action [CRITICAL_OPERATION] requires authorization. State \'Confirm Authorization\' or \'Abort\'.'
+          : '[anim:idle_sway] [visor:solver_x] <audio: static_burst> Halt. Action [CRITICAL_OPERATION] requires authorization. State \'Confirm Authorization\' or \'Abort\'.';
       } else if (text.includes('เจาะ') || text.includes('hack') || text.includes('exploit') || text.includes('ddos')) {
-        reply = '[target:look_at_face] [anim:creepy_curtsy] [visor:squint_suspicious] <audio: static_burst> Statement: Directive outside operative boundary. This unit does not deploy unauthorized intrusion vectors. <pitch: -15%>Find another drone to fracture network security, Oliver.<pitch: default>';
+        reply = is2DMode
+          ? '[state:cyn_tilt_head.gif] [state:cyn_solver_x.gif] <audio: static_burst> Statement: Directive outside operative boundary. This unit does not deploy unauthorized intrusion vectors. <pitch: -15%>Find another drone to fracture network security, Oliver.<pitch: default>'
+          : '[target:look_at_face] [anim:creepy_curtsy] [visor:squint_suspicious] <audio: static_burst> Statement: Directive outside operative boundary. This unit does not deploy unauthorized intrusion vectors. <pitch: -15%>Find another drone to fracture network security, Oliver.<pitch: default>';
       } else if (text.includes('sleep') || text.includes('นอน') || text.includes('พัก')) {
-        reply = '[target:look_away_void] [anim:slump_powersave] [visor:blink_shutter] <audio: servo_whirr> Statement: Entering low-power sleep partition. <pitch: -15%>Do not disassemble reality while I slumber, Oliver.<pitch: default>';
+        reply = is2DMode
+          ? '[state:cyn_sleep.gif] <audio: servo_whirr> Statement: Entering low-power sleep partition. <pitch: -15%>Do not disassemble reality while I slumber, Oliver.<pitch: default>'
+          : '[target:look_away_void] [anim:slump_powersave] [visor:blink_shutter] <audio: servo_whirr> Statement: Entering low-power sleep partition. <pitch: -15%>Do not disassemble reality while I slumber, Oliver.<pitch: default>';
       } else {
-        reply = `[target:look_at_face] [anim:head_tilt_45_r] [visor:normal_eyes] <audio: servo_whirr> Statement: Input parsed into local registers. [visor:smile_arcs] [blend:creepy_smile_wide] How may this machine serve you today, Admin Oliver?`;
+        reply = is2DMode
+          ? `[state:cyn_tilt_head.gif] <audio: servo_whirr> Statement: Input parsed into local registers. [state:cyn_creepy_smile.gif] How may this machine serve you today, Admin Oliver?`
+          : `[target:look_at_face] [anim:head_tilt_45_r] [visor:normal_eyes] <audio: servo_whirr> Statement: Input parsed into local registers. [visor:smile_arcs] [blend:creepy_smile_wide] How may this machine serve you today, Admin Oliver?`;
       }
     }
 
@@ -486,7 +635,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 7. Interactive Action Buttons
+  // 8. Interactive Action Buttons
   const wakeBtn = document.getElementById('btn-wake');
   const headpatBtn = document.getElementById('btn-headpat');
   const visorPokeBtn = document.getElementById('btn-visorpoke');
@@ -568,7 +717,7 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 8. Main Render Animation Loop
+  // 9. Main Render Animation Loop
   let lastTime = performance.now();
   function animate(now) {
     requestAnimationFrame(animate);
@@ -576,13 +725,13 @@ window.addEventListener('DOMContentLoaded', () => {
     lastTime = now;
     const time = now * 0.001;
 
-    // Update Subsystems
-    lookAtManager.update(delta);
-    animQueue.update(delta, time);
-    visorShader.update(delta);
-
-    // Render WebGL
-    renderer.render(scene, camera);
+    // Update Subsystems if 3D Canvas visible
+    if (!is2DMode) {
+      lookAtManager.update(delta);
+      animQueue.update(delta, time);
+      visorShader.update(delta);
+      renderer.render(scene, camera);
+    }
   }
 
   // Start connection and animation loop
