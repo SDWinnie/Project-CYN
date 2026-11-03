@@ -179,7 +179,7 @@ window.addEventListener('DOMContentLoaded', () => {
       else if (kStr.includes('crawl_closer') || vStr.includes('squint_suspicious')) primaryGif = 'cyn_inspect.gif';
       else if (kStr.includes('slump_powersave') || vStr.includes('blink_shutter')) primaryGif = 'cyn_sleep.gif';
       else if (kStr.includes('head_tilt_45')) primaryGif = 'cyn_tilt_head.gif';
-      else primaryGif = 'cyn_idle.gif';
+      else primaryGif = 'cyn-md.gif';
     }
 
     if (kinematics.length === 0 && visorTags.length === 0 && primaryGif) {
@@ -295,8 +295,14 @@ window.addEventListener('DOMContentLoaded', () => {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        if (data.type === 'handshake' && data.initial_event) {
-          handleServerPayload(data.initial_event);
+        if (data.type === 'handshake') {
+          if (data.firestore_sync) {
+            const fb = document.getElementById('firestore-badge');
+            if (fb) fb.textContent = ${data.firestore_sync} (/users/oliver);
+          }
+          if (data.initial_event) {
+            handleServerPayload(data.initial_event);
+          }
         } else {
           handleServerPayload(data);
         }
@@ -384,7 +390,7 @@ window.addEventListener('DOMContentLoaded', () => {
         else if (kin.includes('crawl_closer') || vis.includes('squint_suspicious')) gifName = 'cyn_inspect.gif';
         else if (kin.includes('slump_powersave') || vis.includes('blink_shutter')) gifName = 'cyn_sleep.gif';
         else if (kin.includes('head_tilt_45')) gifName = 'cyn_tilt_head.gif';
-        else gifName = 'cyn_idle.gif';
+        else gifName = 'cyn-md.gif';
       }
 
       if (gifImg && gifName) {

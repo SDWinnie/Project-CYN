@@ -17,7 +17,7 @@
 
       <!-- 2D Animated GIF Viewport Overlay -->
       <div id="cyn-gif-container" style="display: none; position: absolute; inset: 0; align-items: center; justify-content: center; z-index: 4; pointer-events: none;">
-        <img id="cyn-gif-img" src="assets/cyn/cyn_idle.gif" alt="CYN 2D Animated Sprite" style="width: 290px; height: 290px; object-fit: contain; pointer-events: auto; cursor: pointer; filter: drop-shadow(0 0 16px rgba(255,204,0,0.4)); transition: transform 0.12s ease;">
+        <img id="cyn-gif-img" src="assets/cyn/cyn-md.gif" alt="Chibi Solver CYN 2D Animated Sprite" style="width: 290px; height: 290px; object-fit: contain; pointer-events: auto; cursor: pointer; filter: drop-shadow(0 0 16px rgba(255,204,0,0.4)); transition: transform 0.12s ease;">
       </div>
 
       <!-- HUD Telemetry Header -->
@@ -32,7 +32,10 @@
         <div class="hud-telemetry">
           <div>Entity: Absolute Solver Worker Drone</div>
           <div>Controller: Admin Oliver</div>
-          <div id="hud-runtime-mode">Runtime: Three.js WebGL / VRM 1.0</div>
+          <div id="hud-runtime-mode">Runtime: 2D Chibi Solver GIF / 3D VRM Rig</div>
+          <div id="firestore-status-row" style="margin-top: 2px; color: #00ff88; font-size: 0.72rem;">
+            <span>Firestore Sync: </span><span id="firestore-badge">ONLINE (/users/oliver)</span>
+          </div>
           <div id="relay-status-row" style="margin-top: 4px; color: #4da6ff;">
             <span>Public Relay: </span><a id="public-relay-url" href="#" target="_blank" style="color: #ffcc00; text-decoration: underline;">Detecting...</a>
             <button id="btn-change-relay" style="margin-left: 6px; padding: 2px 7px; font-size: 0.68rem; background: #1a1e28; color: #ffcc00; border: 1px solid #ffcc00; border-radius: 3px; cursor: pointer;">Connect Relay</button>
@@ -61,7 +64,7 @@
         <div class="visor-meta">
           <div id="visor-name" class="visor-meta-title">Normal Eyes</div>
           <div id="visor-index" style="color: #889;">Index 0</div>
-          <div id="visor-state-badge" style="font-size: 0.72rem; color: #ffcc00; margin-top: 2px;">cyn_idle.gif</div>
+          <div id="visor-state-badge" style="font-size: 0.72rem; color: #ffcc00; margin-top: 2px;">cyn-md.gif</div>
         </div>
       </div>
 
