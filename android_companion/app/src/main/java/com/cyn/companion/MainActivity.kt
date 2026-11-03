@@ -96,7 +96,13 @@ class MainActivity : AppCompatActivity() {
             startService(serviceIntent)
             Toast.makeText(this, "Stopping CYN Daemon...", Toast.LENGTH_SHORT).show()
         } else {
-            val wsUrl = "ws://$ip:8080/ws/cyn"
+            val cleanIp = ip.trim()
+            val wsUrl = when {
+                cleanIp.startsWith("https://") -> cleanIp.replaceFirst("https://", "wss://").trimEnd('/') + "/ws/cyn"
+                cleanIp.startsWith("http://") -> cleanIp.replaceFirst("http://", "ws://").trimEnd('/') + "/ws/cyn"
+                cleanIp.startsWith("wss://") || cleanIp.startsWith("ws://") -> if (cleanIp.endsWith("/ws/cyn")) cleanIp else cleanIp.trimEnd('/') + "/ws/cyn"
+                else -> "ws://$cleanIp:8080/ws/cyn"
+            }
             serviceIntent.action = CynForegroundService.ACTION_START
             serviceIntent.putExtra(CynForegroundService.EXTRA_HOST_URL, wsUrl)
 

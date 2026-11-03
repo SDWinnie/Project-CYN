@@ -58,26 +58,28 @@ class WakeWordDetector:
         self._thread: Optional[threading.Thread] = None
         self._hotkey_listener = None
         self._oww_model = None
-        self._init_detector()
+        self._init_detector_async()
         self._init_hotkey()
 
-    def _init_detector(self) -> None:
-        """Initialize openWakeWord or phonetic fallbacks."""
-        try:
-            import openwakeword
-            from openwakeword.model import Model
-
-            # Check available models or load default
-            logger.info("Initializing openWakeWord engine...")
+    def _init_detector_async(self) -> None:
+        """Initialize openWakeWord in a background thread to prevent blocking server boot."""
+        def _loader():
             try:
-                # Pre-download default models if needed
-                openwakeword.utils.download_models()
-                self._oww_model = Model(inference_framework="onnx")
-                logger.info(f"openWakeWord loaded models: {list(self._oww_model.models.keys())}")
+                import openwakeword
+                from openwakeword.model import Model
+
+                logger.info("Initializing openWakeWord engine in background...")
+                try:
+                    openwakeword.utils.download_models()
+                    self._oww_model = Model(inference_framework="onnx")
+                    logger.info(f"openWakeWord loaded models: {list(self._oww_model.models.keys())}")
+                except Exception as e:
+                    logger.warning(f"openWakeWord model loading note: {e}")
             except Exception as e:
-                logger.warning(f"openWakeWord model loading note: {e}")
-        except Exception as e:
-            logger.warning(f"openWakeWord module note: {e}")
+                logger.warning(f"openWakeWord module note: {e}")
+
+        t = threading.Thread(target=_loader, daemon=True)
+        t.start()
 
     def _init_hotkey(self) -> None:
         """Initialize Ctrl+Space hotkey listener."""

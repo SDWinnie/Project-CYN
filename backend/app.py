@@ -20,6 +20,15 @@ import sys
 from pathlib import Path
 from typing import Any, Set
 
+CURRENT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = CURRENT_DIR.parent
+STATIC_DIR = ROOT_DIR / "web_avatar"
+
+if str(CURRENT_DIR) not in sys.path:
+    sys.path.insert(0, str(CURRENT_DIR))
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from aiohttp import web, WSMsgType
 
 from audio_dsp_parser import AudioDspParser, ParsedCynMessage
@@ -63,7 +72,11 @@ class CynServer:
 
         # Serve static web avatar frontend
         if STATIC_DIR.exists():
-            self.app.router.add_static("/", path=STATIC_DIR, show_index=True)
+            self.app.router.add_get("/", self.handle_index)
+            self.app.router.add_static("/", path=STATIC_DIR, show_index=False)
+
+    async def handle_index(self, request: web.Request) -> web.FileResponse:
+        return web.FileResponse(STATIC_DIR / "index.html")
 
     def _on_tunnel_url_ready(self, public_url: str) -> None:
         logger.info(f"Relay Conduit Active for Clients: {public_url}")
@@ -264,7 +277,7 @@ class CynServer:
         return ws
 
     async def start(self) -> None:
-        """Start servers and background threads."""
+        """Start servers immediately (<50ms) and initialize background tasks concurrently."""
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.host, self.port)
@@ -274,14 +287,8 @@ class CynServer:
         logger.info(f"LAN Access for Android Client: http://<YOUR_IP>:{self.port}")
         logger.info(f"============================================================")
 
-        # Start Cloudflare public intermediary relay tunnel
-        self.tunnel_relay.start()
-
-        # Start wake word listener
-        self.wake_detector.start()
-
-        # Connect to Gemini Live API
-        await self.gemini_bridge.connect()
+        # Launch background tasks asynchronously without blocking HTTP/WebSocket listener
+        bg_task = asyncio.create_task(self._init_background_services())
 
         # Keep server running
         try:
@@ -290,10 +297,31 @@ class CynServer:
         except asyncio.CancelledError:
             pass
         finally:
+            bg_task.cancel()
             self.tunnel_relay.stop()
             await self.gemini_bridge.disconnect()
             self.wake_detector.stop()
             await runner.cleanup()
+
+    async def _init_background_services(self) -> None:
+        """Non-blocking background subsystem initialization."""
+        # 1. Start Cloudflare public intermediary relay tunnel
+        try:
+            self.tunnel_relay.start()
+        except Exception as e:
+            logger.warning(f"Tunnel relay startup note: {e}")
+
+        # 2. Start wake word listener
+        try:
+            self.wake_detector.start()
+        except Exception as e:
+            logger.warning(f"Wake detector startup note: {e}")
+
+        # 3. Connect to Gemini Live API
+        try:
+            await self.gemini_bridge.connect()
+        except Exception as e:
+            logger.warning(f"Gemini Live API connection note: {e}")
 
 
 def main():

@@ -44,8 +44,13 @@ def ensure_cloudflared() -> bool:
 
 
 class CloudflareTunnelRelay:
-    def __init__(self, local_port: int = 8080, on_url_ready: Optional[Callable[[str], None]] = None) -> None:
-        self.local_port = local_port
+    def __init__(
+        self,
+        local_port: int = 8080,
+        port: Optional[int] = None,
+        on_url_ready: Optional[Callable[[str], None]] = None,
+    ) -> None:
+        self.local_port = port if port is not None else local_port
         self.on_url_ready = on_url_ready
         self.public_url: Optional[str] = None
         self.process: Optional[subprocess.Popen] = None
@@ -54,10 +59,6 @@ class CloudflareTunnelRelay:
 
     def start(self) -> None:
         """Start cloudflared in a background thread."""
-        if not ensure_cloudflared():
-            logger.error(f"Cannot start tunnel relay without cloudflared binary.")
-            return
-
         if self._running:
             return
 
@@ -66,6 +67,10 @@ class CloudflareTunnelRelay:
         self._thread.start()
 
     def _run_tunnel(self) -> None:
+        if not ensure_cloudflared():
+            logger.warning("Cloudflare binary not available; public relay offline.")
+            return
+
         cmd = [
             str(CLOUDFLARED_BIN),
             "tunnel",
