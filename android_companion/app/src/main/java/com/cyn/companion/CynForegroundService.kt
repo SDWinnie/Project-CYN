@@ -135,10 +135,13 @@ class CynForegroundService : LifecycleService(), SensorEventListener {
 
     private fun connectWebSocket() {
         try {
-            val request = Request.Builder().url(targetHostUrl).build()
+            val fullUrl = if (targetHostUrl.contains("client=")) targetHostUrl
+                else if (targetHostUrl.contains("?")) "$targetHostUrl&client=android"
+                else "$targetHostUrl?client=android"
+            val request = Request.Builder().url(fullUrl).build()
             webSocket = okHttpClient?.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
-                    Log.i(TAG, "CYN WebSocket Connected: $targetHostUrl")
+                    Log.i(TAG, "CYN WebSocket Connected: $fullUrl")
                     updateNotification("WebSocket Conduit Connected to Host")
                 }
 

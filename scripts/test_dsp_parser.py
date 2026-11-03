@@ -16,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 from audio_dsp_parser import AudioDspParser
+from cyn_prompt import PC_STARTUP_SEQUENCE, MOBILE_STARTUP_SEQUENCE, get_startup_sequence_for_platform
 from system_safety_gate import SafetyGate
 from telemetry_receiver import TelemetryManager
 
@@ -100,7 +101,33 @@ def test_telemetry():
     resp = telemetry.update_mobile_sensors(acceleration=25.0)
     assert "[sensor:gyro_shake]" in resp
     print("Gyro shake response: OK")
+
+    # Thermal overheating
+    resp = telemetry.update_mobile_sensors(temperature=45.5, is_thermal_hot=True)
+    assert "[sensor:thermal_hot]" in resp
+    print("Thermal hot response: OK")
     print("-> Telemetry test PASSED!\n")
+
+
+def test_edition_startup_sequences():
+    print("=== TEST 5: EDITION STARTUP SEQUENCES ===")
+    # 1. PC Edition Startup
+    pc_seq = get_startup_sequence_for_platform("pc")
+    parsed_pc = AudioDspParser.parse_message(pc_seq)
+    assert "creepy_curtsy" in parsed_pc.kinematics
+    assert "camera_shutter" in parsed_pc.audio_cues
+    assert parsed_pc.state_declaration == "Statement"
+    print("PC Edition startup sequence parsing: OK")
+
+    # 2. Mobile Edition Startup
+    mobile_seq = get_startup_sequence_for_platform("android")
+    parsed_mobile = AudioDspParser.parse_message(mobile_seq)
+    assert "reach_forward" in parsed_mobile.kinematics
+    assert "static_burst" in parsed_mobile.audio_cues
+    assert 0.20 in parsed_mobile.pitch_shifts
+    assert parsed_mobile.state_declaration == "Statement"
+    print("Mobile Edition startup sequence parsing: OK")
+    print("-> Edition startup sequences PASSED!\n")
 
 
 if __name__ == "__main__":
@@ -108,6 +135,7 @@ if __name__ == "__main__":
     test_visor_mapping()
     test_safety_gate()
     test_telemetry()
+    test_edition_startup_sequences()
     print("========================================")
     print("ALL PROJECT CYN SUBSYSTEM TESTS PASSED!")
     print("========================================")

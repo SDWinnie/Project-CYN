@@ -83,15 +83,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/cyn`;
+    const isMobileClient = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (window.innerWidth < 860 && window.innerHeight > window.innerWidth);
+    const clientType = isMobileClient ? 'android' : 'pc';
+    const wsUrl = `${protocol}//${window.location.host}/ws/cyn?client=${clientType}`;
 
     updateStatusBadge('CONNECTING...', 'sleep');
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       wsConnected = true;
-      updateStatusBadge('ONLINE (STANDBY)', 'normal');
-      appendTranscript('CYN', 'Statement: WebSocket telemetry link synchronized. Standing by for Admin Oliver.', []);
+      updateStatusBadge(`ONLINE (${clientType.toUpperCase()} EDITION)`, 'normal');
     };
 
     ws.onclose = () => {
@@ -107,7 +108,11 @@ window.addEventListener('DOMContentLoaded', () => {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        handleServerPayload(data);
+        if (data.type === 'handshake' && data.initial_event) {
+          handleServerPayload(data.initial_event);
+        } else {
+          handleServerPayload(data);
+        }
       } catch (e) {
         console.error('Error parsing incoming WS message:', e);
       }

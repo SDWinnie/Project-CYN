@@ -23,7 +23,7 @@ from typing import Any, Set
 from aiohttp import web, WSMsgType
 
 from audio_dsp_parser import AudioDspParser, ParsedCynMessage
-from cyn_prompt import CYN_SYSTEM_PROMPT
+from cyn_prompt import CYN_SYSTEM_PROMPT, get_startup_sequence_for_platform, get_prompt_for_platform
 from gemini_live_client import GeminiLiveBridge
 from system_safety_gate import SafetyGate
 from telemetry_receiver import TelemetryManager
@@ -140,22 +140,30 @@ class CynServer:
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         self.ws_clients.add(ws)
-        logger.info(f"WebGL Avatar client connected: {request.remote}")
 
-        # Send initial handshake state
-        initial_parsed = AudioDspParser.parse_message(
-            "[anim:idle_sway] [visor:normal_eyes] [target:look_at_face] "
-            "Statement: WebGL telemetry conduit established. CYN standing by."
-        )
+        client_type = request.query.get("client", "pc").lower()
+        logger.info(f"WebGL Avatar client connected [{client_type}]: {request.remote}")
+
+        # Send mandatory Edition startup diagnostic sequence
+        startup_text = get_startup_sequence_for_platform(client_type)
+        initial_parsed = AudioDspParser.parse_message(startup_text)
+        initial_visor_idx = AudioDspParser.map_visor_to_index(initial_parsed.visor_tags[0]) if initial_parsed.visor_tags else 0
+
         await ws.send_str(json.dumps({
             "type": "handshake",
+            "edition": "mobile" if client_type in ("android", "mobile") else "pc",
             "lifecycle_state": self.wake_detector.state.value,
             "initial_event": {
                 "priority": initial_parsed.level_priority,
                 "raw_text": initial_parsed.raw_text,
                 "clean_text": initial_parsed.clean_speech_text,
                 "kinematics": initial_parsed.kinematics,
-                "visor_index": 0,
+                "visor_tags": initial_parsed.visor_tags,
+                "visor_index": initial_visor_idx,
+                "audio_cues": initial_parsed.audio_cues,
+                "pitch_shifts": initial_parsed.pitch_shifts,
+                "blendshapes": initial_parsed.blendshapes,
+                "targets": initial_parsed.targets,
             }
         }))
 
@@ -193,12 +201,14 @@ class CynServer:
                         else:
                             await self.gemini_bridge.send_text_prompt(text)
 
-                    # Handle mobile sensor telemetry (gyro, battery, touch)
+                    # Handle mobile sensor telemetry (gyro, battery, thermal, touch)
                     elif msg_type == "mobile_telemetry":
                         acc = float(data.get("acceleration", 0.0))
                         bat = float(data.get("battery", 1.0))
                         orient = data.get("orientation", "portrait")
-                        reply = self.telemetry.update_mobile_sensors(acc, bat, orient)
+                        temp = float(data.get("temperature", 32.0))
+                        is_hot = bool(data.get("thermal_hot", False))
+                        reply = self.telemetry.update_mobile_sensors(acc, bat, orient, temp, is_hot)
                         if reply:
                             parsed = AudioDspParser.parse_message(reply)
                             await self.broadcast_cyn_event(parsed)

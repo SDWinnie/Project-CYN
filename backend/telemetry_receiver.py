@@ -37,6 +37,8 @@ class TelemetryManager:
         acceleration: float = 0.0,
         battery: float = 1.0,
         orientation: str = "portrait",
+        temperature: float = 32.0,
+        is_thermal_hot: bool = False,
     ) -> Optional[str]:
         """Process mobile sensor telemetry and return any triggered CYN reaction dialogue."""
         self.device.platform = "android"
@@ -44,6 +46,15 @@ class TelemetryManager:
         self.device.battery_level = battery
         self.device.orientation = orientation
         self.device.last_updated = time.time()
+
+        # Check for thermal overheating
+        if is_thermal_hot or temperature >= 44.0:
+            logger.warning("Thermal overheating event triggered")
+            return (
+                "[sensor:thermal_hot] [anim:head_tilt_45_l] [visor:squint_suspicious] <audio: static_burst> "
+                "Warning: Chassis core temperature exceeding nominal thermal boundaries. Silicon throttling imminent. "
+                "Oliver, terminate your unoptimized background applications before this host device melts into silicon slag."
+            )
 
         # Check for violent shake
         if acceleration > 22.0:
