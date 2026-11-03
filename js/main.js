@@ -129,6 +129,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // 5. Server Payload Dispatcher
   function handleServerPayload(data) {
+    if (data.type === 'tunnel_ready' && data.public_url) {
+      updatePublicRelayUrl(data.public_url);
+      return;
+    }
+
     if (data.type === 'cyn_response' || data.type === 'handshake') {
       const p = data.priority || 2;
 
@@ -195,6 +200,26 @@ window.addEventListener('DOMContentLoaded', () => {
   const transcriptBox = document.getElementById('transcript-box');
   const chatInput = document.getElementById('chat-input');
   const sendBtn = document.getElementById('send-btn');
+
+  function updatePublicRelayUrl(url) {
+    const relayEl = document.getElementById('public-relay-url');
+    if (relayEl && url) {
+      relayEl.href = url;
+      relayEl.textContent = url.replace('https://', '');
+      relayEl.title = `Click to open. Mobile URL: ${url}?client=android`;
+    }
+  }
+
+  function checkTunnelUrl() {
+    fetch('/api/tunnel')
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.public_url) updatePublicRelayUrl(d.public_url);
+      })
+      .catch(() => {});
+  }
+  setInterval(checkTunnelUrl, 4000);
+  checkTunnelUrl();
 
   function updateStatusBadge(text, type = 'normal') {
     if (!statusBadge) return;
