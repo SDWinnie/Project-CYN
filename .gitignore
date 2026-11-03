@@ -9,3 +9,5 @@ android_companion/local.properties
 *.tmp
 .tmp_audio/
 releases/
+tools/
+backend/tunnel_url.txt

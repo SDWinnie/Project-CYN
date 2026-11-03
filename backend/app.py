@@ -27,6 +27,7 @@ from cyn_prompt import CYN_SYSTEM_PROMPT, get_startup_sequence_for_platform, get
 from gemini_live_client import GeminiLiveBridge
 from system_safety_gate import SafetyGate
 from telemetry_receiver import TelemetryManager
+from tunnel_relay import CloudflareTunnelRelay
 from wake_word_detector import CynLifecycleState, WakeWordDetector
 
 logging.basicConfig(
@@ -50,17 +51,44 @@ class CynServer:
         self.telemetry = TelemetryManager()
         self.gemini_bridge = GeminiLiveBridge(on_cyn_event=self._on_cyn_model_event)
         self.wake_detector = WakeWordDetector(on_state_change=self._on_wake_state_change)
+        self.tunnel_relay = CloudflareTunnelRelay(port=self.port, on_url_ready=self._on_tunnel_url_ready)
 
         self._setup_routes()
 
     def _setup_routes(self) -> None:
         self.app.router.add_get("/ws/cyn", self.handle_websocket)
         self.app.router.add_get("/api/status", self.handle_status)
+        self.app.router.add_get("/api/tunnel", self.handle_tunnel_info)
         self.app.router.add_post("/api/speak_test", self.handle_speak_test)
 
         # Serve static web avatar frontend
         if STATIC_DIR.exists():
             self.app.router.add_static("/", path=STATIC_DIR, show_index=True)
+
+    def _on_tunnel_url_ready(self, public_url: str) -> None:
+        logger.info(f"Relay Conduit Active for Clients: {public_url}")
+        # Broadcast tunnel ready to any connected HUD clients
+        msg_payload = {
+            "type": "tunnel_ready",
+            "public_url": public_url,
+            "mobile_url": f"{public_url}?client=android",
+        }
+        for ws in list(self.ws_clients):
+            if not ws.closed:
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        ws.send_str(json.dumps(msg_payload)),
+                        asyncio.get_event_loop(),
+                    )
+                except Exception:
+                    pass
+
+    async def handle_tunnel_info(self, request: web.Request) -> web.Response:
+        return web.json_response({
+            "status": "active" if self.tunnel_relay.public_url else "initializing",
+            "public_url": self.tunnel_relay.public_url,
+            "mobile_url": f"{self.tunnel_relay.public_url}?client=android" if self.tunnel_relay.public_url else None,
+        })
 
     def _on_wake_state_change(self, state: CynLifecycleState, message: str) -> None:
         """Called when wake-word or hotkey changes state."""
@@ -246,6 +274,9 @@ class CynServer:
         logger.info(f"LAN Access for Android Client: http://<YOUR_IP>:{self.port}")
         logger.info(f"============================================================")
 
+        # Start Cloudflare public intermediary relay tunnel
+        self.tunnel_relay.start()
+
         # Start wake word listener
         self.wake_detector.start()
 
@@ -259,6 +290,7 @@ class CynServer:
         except asyncio.CancelledError:
             pass
         finally:
+            self.tunnel_relay.stop()
             await self.gemini_bridge.disconnect()
             self.wake_detector.stop()
             await runner.cleanup()
