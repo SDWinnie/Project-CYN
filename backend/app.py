@@ -1,8 +1,8 @@
 """Main Backend Server and WebSocket Gateway for Project CYN.
 
 Coordinates:
-- aiohttp Web server (serves Three.js Avatar client to PC and Android browsers)
-- Real-time WebSocket bridge (/ws/cyn)
+- aiohttp Web server (serves Three.js Avatar & 2D GIF assets to PC and Android)
+- Real-time WebSocket bridge (/ws/cyn) supporting 3D VRM and 2D GIF modes
 - Gemini Multimodal Live API client (gemini-3.8-live)
 - Local openWakeWord & hotkey daemon (Ctrl+Space)
 - Two-Phase Safety Authorization Gate
@@ -23,6 +23,7 @@ from typing import Any, Set
 CURRENT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = CURRENT_DIR.parent
 STATIC_DIR = ROOT_DIR / "web_avatar"
+ASSETS_DIR = ROOT_DIR / "assets"
 
 if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
@@ -44,9 +45,6 @@ logging.basicConfig(
     format="[%(asctime)s] [%(levelname)s] [%(name)s]: %(message)s",
 )
 logger = logging.getLogger("CYN.App")
-
-ROOT_DIR = Path(__file__).resolve().parent.parent
-STATIC_DIR = ROOT_DIR / "web_avatar"
 
 
 class CynServer:
@@ -70,6 +68,10 @@ class CynServer:
         self.app.router.add_get("/api/tunnel", self.handle_tunnel_info)
         self.app.router.add_post("/api/speak_test", self.handle_speak_test)
 
+        # Serve static assets (2D animated GIFs)
+        if ASSETS_DIR.exists():
+            self.app.router.add_static("/assets", path=ASSETS_DIR, show_index=False)
+
         # Serve static web avatar frontend
         if STATIC_DIR.exists():
             self.app.router.add_get("/", self.handle_index)
@@ -80,11 +82,11 @@ class CynServer:
 
     def _on_tunnel_url_ready(self, public_url: str) -> None:
         logger.info(f"Relay Conduit Active for Clients: {public_url}")
-        # Broadcast tunnel ready to any connected HUD clients
         msg_payload = {
             "type": "tunnel_ready",
             "public_url": public_url,
             "mobile_url": f"{public_url}?client=android",
+            "mobile_2d_url": f"{public_url}?client=android&mode=2d",
         }
         for ws in list(self.ws_clients):
             if not ws.closed:
@@ -101,6 +103,7 @@ class CynServer:
             "status": "active" if self.tunnel_relay.public_url else "initializing",
             "public_url": self.tunnel_relay.public_url,
             "mobile_url": f"{self.tunnel_relay.public_url}?client=android" if self.tunnel_relay.public_url else None,
+            "mobile_2d_url": f"{self.tunnel_relay.public_url}?client=android&mode=2d" if self.tunnel_relay.public_url else None,
         })
 
     def _on_wake_state_change(self, state: CynLifecycleState, message: str) -> None:
@@ -126,7 +129,7 @@ class CynServer:
         audio_b64: str | None = None,
         extra: dict[str, Any] | None = None,
     ) -> None:
-        """Broadcast formatted event payload to all connected WebGL avatar clients."""
+        """Broadcast formatted event payload to all connected WebGL and 2D overlay clients."""
         visor_index = 0
         if parsed.visor_tags:
             visor_index = AudioDspParser.map_visor_to_index(parsed.visor_tags[0])
@@ -137,6 +140,8 @@ class CynServer:
             "raw_text": parsed.raw_text,
             "clean_text": parsed.clean_speech_text,
             "state_declaration": parsed.state_declaration,
+            "state_gif": parsed.state_gif,
+            "state_gifs": parsed.state_gifs,
             "kinematics": parsed.kinematics,
             "visor_tags": parsed.visor_tags,
             "visor_index": visor_index,
@@ -167,6 +172,7 @@ class CynServer:
             "lifecycle_state": self.wake_detector.state.value,
             "connected_avatar_clients": len(self.ws_clients),
             "gemini_connected": self.gemini_bridge._is_connected,
+            "visual_modes": ["3D VRM Three.js", "2D Animated GIF Overlay"],
         })
 
     async def handle_speak_test(self, request: web.Request) -> web.Response:
@@ -183,7 +189,11 @@ class CynServer:
         self.ws_clients.add(ws)
 
         client_type = request.query.get("client", "pc").lower()
-        logger.info(f"WebGL Avatar client connected [{client_type}]: {request.remote}")
+        mode = request.query.get("mode", "").lower()
+        if mode == "2d" and "2d" not in client_type:
+            client_type = f"{client_type}_2d"
+
+        logger.info(f"Client connected [{client_type}]: {request.remote}")
 
         # Send mandatory Edition startup diagnostic sequence
         startup_text = get_startup_sequence_for_platform(client_type)
@@ -192,12 +202,15 @@ class CynServer:
 
         await ws.send_str(json.dumps({
             "type": "handshake",
-            "edition": "mobile" if client_type in ("android", "mobile") else "pc",
+            "edition": client_type,
             "lifecycle_state": self.wake_detector.state.value,
             "initial_event": {
                 "priority": initial_parsed.level_priority,
                 "raw_text": initial_parsed.raw_text,
                 "clean_text": initial_parsed.clean_speech_text,
+                "state_declaration": initial_parsed.state_declaration,
+                "state_gif": initial_parsed.state_gif,
+                "state_gifs": initial_parsed.state_gifs,
                 "kinematics": initial_parsed.kinematics,
                 "visor_tags": initial_parsed.visor_tags,
                 "visor_index": initial_visor_idx,
@@ -272,7 +285,7 @@ class CynServer:
                     logger.warning(f"WebSocket connection closed with error: {ws.exception()}")
         finally:
             self.ws_clients.discard(ws)
-            logger.info("WebGL Avatar client disconnected.")
+            logger.info("Client disconnected.")
 
         return ws
 

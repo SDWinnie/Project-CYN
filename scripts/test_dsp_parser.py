@@ -5,6 +5,8 @@ Tests:
 2. Kinematics tag parsing ([anim:...], [visor:...], [blend:...], [physics:...])
 3. Two-Phase Authorization Safety Gate (Halt / Confirm / Abort)
 4. Visor sprite atlas mapping (0-6)
+5. Edition startup sequences (PC, Mobile, Desktop 2D, Mobile 2D)
+6. 2D GIF Controller & Asset Library Verification
 """
 
 from __future__ import annotations
@@ -16,9 +18,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 from audio_dsp_parser import AudioDspParser
-from cyn_prompt import PC_STARTUP_SEQUENCE, MOBILE_STARTUP_SEQUENCE, get_startup_sequence_for_platform
+from cyn_prompt import (
+    PC_STARTUP_SEQUENCE,
+    MOBILE_STARTUP_SEQUENCE,
+    PC_2D_STARTUP_SEQUENCE,
+    MOBILE_2D_STARTUP_SEQUENCE,
+    get_startup_sequence_for_platform,
+    get_prompt_for_platform,
+)
 from system_safety_gate import SafetyGate
 from telemetry_receiver import TelemetryManager
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+ASSETS_CYN = ROOT_DIR / "assets" / "cyn"
 
 
 def test_parser():
@@ -117,7 +129,7 @@ def test_edition_startup_sequences():
     assert "creepy_curtsy" in parsed_pc.kinematics
     assert "camera_shutter" in parsed_pc.audio_cues
     assert parsed_pc.state_declaration == "Statement"
-    print("PC Edition startup sequence parsing: OK")
+    print("PC Edition startup sequence: OK")
 
     # 2. Mobile Edition Startup
     mobile_seq = get_startup_sequence_for_platform("android")
@@ -126,8 +138,60 @@ def test_edition_startup_sequences():
     assert "static_burst" in parsed_mobile.audio_cues
     assert 0.20 in parsed_mobile.pitch_shifts
     assert parsed_mobile.state_declaration == "Statement"
-    print("Mobile Edition startup sequence parsing: OK")
+    print("Mobile Edition startup sequence: OK")
+
+    # 3. PC 2D GIF Startup
+    pc_2d_seq = get_startup_sequence_for_platform("desktop_2d")
+    parsed_pc_2d = AudioDspParser.parse_message(pc_2d_seq)
+    assert parsed_pc_2d.state_gif == "cyn_glitch.gif"
+    assert "cyn_curtsy.gif" in parsed_pc_2d.state_gifs
+    assert "camera_shutter" in parsed_pc_2d.audio_cues
+    print("PC 2D GIF Edition startup sequence: OK")
+
+    # 4. Mobile 2D GIF Startup
+    mob_2d_seq = get_startup_sequence_for_platform("mobile_2d")
+    parsed_mob_2d = AudioDspParser.parse_message(mob_2d_seq)
+    assert parsed_mob_2d.state_gif == "cyn_glitch.gif"
+    assert "cyn_tilt_head.gif" in parsed_mob_2d.state_gifs
+    print("Mobile 2D GIF Edition startup sequence: OK")
     print("-> Edition startup sequences PASSED!\n")
+
+
+def test_2d_gif_controller():
+    print("=== TEST 6: 2D GIF CONTROLLER & ASSET VERIFICATION ===")
+    required_gifs = [
+        "cyn_idle.gif",
+        "cyn_tilt_head.gif",
+        "cyn_glitch.gif",
+        "cyn_solver_x.gif",
+        "cyn_creepy_smile.gif",
+        "cyn_curtsy.gif",
+        "cyn_reach.gif",
+        "cyn_inspect.gif",
+        "cyn_sleep.gif",
+    ]
+
+    for gif_name in required_gifs:
+        gif_file = ASSETS_CYN / gif_name
+        assert gif_file.exists(), f"Missing required GIF asset: {gif_name}"
+        assert gif_file.stat().st_size > 1000, f"Corrupted/Empty GIF: {gif_name}"
+        print(f"Asset verified: {gif_name} ({gif_file.stat().st_size} bytes) OK")
+
+    # Test state tag parsing
+    text = "[state:cyn_solver_x.gif] <audio: static_burst> Halt. Action [TARGET] will modify disk contents."
+    parsed = AudioDspParser.parse_message(text)
+    assert parsed.state_gif == "cyn_solver_x.gif"
+    assert "cyn_solver_x.gif" in parsed.state_gifs
+    assert parsed.level_priority == 1
+    assert "Halt" in parsed.clean_speech_text
+    print("Tag '[state:cyn_solver_x.gif]' parsing & priority resolution: OK")
+
+    # Test 3D to 2D GIF inference
+    inferred = AudioDspParser.infer_gif_from_3d(["head_twitch_jitter"], ["error_glitch"], [])
+    assert inferred == "cyn_glitch.gif"
+    print("Inference 3D -> 2D GIF: OK")
+
+    print("-> 2D GIF Controller & Asset Library PASSED!\n")
 
 
 if __name__ == "__main__":
@@ -136,6 +200,7 @@ if __name__ == "__main__":
     test_safety_gate()
     test_telemetry()
     test_edition_startup_sequences()
-    print("========================================")
-    print("ALL PROJECT CYN SUBSYSTEM TESTS PASSED!")
-    print("========================================")
+    test_2d_gif_controller()
+    print("==================================================")
+    print("ALL PROJECT CYN SUBSYSTEM & 2D GIF TESTS PASSED!")
+    print("==================================================")

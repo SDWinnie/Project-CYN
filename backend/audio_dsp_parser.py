@@ -1,8 +1,10 @@
 """Acoustic DSP and Kinematics Tag Parser for Project CYN.
 
-Parses bracketed kinematics ([anim:...], [visor:...], etc.),
-inline DSP audio tags (<pitch:...>, <rate:...>, <audio:...>),
-and pre-statement state declarations.
+Parses:
+- 3D bracketed kinematics ([anim:...], [visor:...], [blend:...], etc.)
+- 2D animated GIF controller tags ([state:filename.gif])
+- inline DSP audio tags (<pitch:...>, <rate:...>, <audio:...>)
+- pre-statement state declarations (Statement:, Diagnostic:, etc.)
 """
 
 from __future__ import annotations
@@ -25,22 +27,25 @@ class ParsedCynMessage:
     audio_cues: List[str] = field(default_factory=list)
     pitch_shifts: List[float] = field(default_factory=list)
     rate_shifts: List[float] = field(default_factory=list)
+    state_gifs: List[str] = field(default_factory=list)
+    state_gif: Optional[str] = None
     level_priority: int = 2  # 1 = Emergency/Interrupt, 2 = Expressive, 3 = Idle
 
 
-KINEMATICS_RE = re.compile(r"\[(anim|visor|target|blend|physics|sensor|touch):([^\]]+)\]", re.IGNORECASE)
+KINEMATICS_RE = re.compile(r"\[(anim|visor|target|blend|physics|sensor|touch|state):([^\]]+)\]", re.IGNORECASE)
 DSP_TAG_RE = re.compile(r"<(pitch|rate|audio):\s*([^>]+)>", re.IGNORECASE)
 STATE_DECLARATION_RE = re.compile(r"^(Statement|Diagnostic|Warning|Observation|Query|Halt):\s*", re.IGNORECASE)
 
 LEVEL1_INTERRUPTS = {
     "visor:solver_x",
+    "state:cyn_solver_x.gif",
     "anim:head_spin_180_horror",
     "halt",
 }
 
 
 class AudioDspParser:
-    """Parser for CYN telemetry tags and DSP markup."""
+    """Parser for CYN telemetry tags, 2D GIF states, and DSP markup."""
 
     @staticmethod
     def parse_message(text: str) -> ParsedCynMessage:
@@ -53,28 +58,32 @@ class AudioDspParser:
         audio_cues: List[str] = []
         pitch_shifts: List[float] = []
         rate_shifts: List[float] = []
+        state_gifs: List[str] = []
 
         level_priority = 2
 
         # Extract bracketed tags
         for match in KINEMATICS_RE.finditer(raw_text):
             tag_type = match.group(1).lower()
-            tag_val = match.group(2).lower()
-            full_tag = f"{tag_type}:{tag_val}"
+            tag_val = match.group(2).strip()
+            tag_val_lower = tag_val.lower()
+            full_tag = f"{tag_type}:{tag_val_lower}"
 
             if full_tag in LEVEL1_INTERRUPTS:
                 level_priority = 1
 
             if tag_type == "anim":
-                kinematics.append(tag_val)
+                kinematics.append(tag_val_lower)
             elif tag_type == "visor":
-                visor_tags.append(tag_val)
+                visor_tags.append(tag_val_lower)
             elif tag_type == "blend":
-                blendshapes.append(tag_val)
+                blendshapes.append(tag_val_lower)
             elif tag_type == "target":
-                targets.append(tag_val)
+                targets.append(tag_val_lower)
             elif tag_type == "physics":
-                physics_tags.append(tag_val)
+                physics_tags.append(tag_val_lower)
+            elif tag_type == "state":
+                state_gifs.append(tag_val)
 
         # Extract inline DSP tags
         for match in DSP_TAG_RE.finditer(raw_text):
@@ -84,7 +93,6 @@ class AudioDspParser:
             if dsp_type == "audio":
                 audio_cues.append(val_str)
             elif dsp_type == "pitch":
-                # e.g., "-20%", "+35%", "default"
                 if "default" in val_str:
                     pitch_shifts.append(0.0)
                 else:
@@ -92,7 +100,6 @@ class AudioDspParser:
                     if m:
                         pitch_shifts.append(float(m.group(1)) / 100.0)
             elif dsp_type == "rate":
-                # e.g., "70%", "100%"
                 m = re.search(r"(\d+)", val_str)
                 if m:
                     rate_shifts.append(float(m.group(1)) / 100.0)
@@ -110,6 +117,19 @@ class AudioDspParser:
                 state_dec = m.group(1)
                 break
 
+        # Primary GIF state resolution (from explicit tag or 3D fallback inference)
+        primary_gif = state_gifs[0] if state_gifs else AudioDspParser.infer_gif_from_3d(kinematics, visor_tags, blendshapes)
+
+        # Cross-populate 3D kinematics/visor if given purely in 2D GIF format
+        if not kinematics and not visor_tags and primary_gif:
+            inferred_anim, inferred_visor, inferred_blend = AudioDspParser.infer_3d_from_gif(primary_gif)
+            if inferred_anim:
+                kinematics.append(inferred_anim)
+            if inferred_visor:
+                visor_tags.append(inferred_visor)
+            if inferred_blend:
+                blendshapes.append(inferred_blend)
+
         return ParsedCynMessage(
             raw_text=raw_text,
             clean_speech_text=clean_speech,
@@ -122,8 +142,58 @@ class AudioDspParser:
             audio_cues=audio_cues,
             pitch_shifts=pitch_shifts,
             rate_shifts=rate_shifts,
+            state_gifs=state_gifs,
+            state_gif=primary_gif,
             level_priority=level_priority,
         )
+
+    @staticmethod
+    def infer_gif_from_3d(kinematics: List[str], visor_tags: List[str], blendshapes: List[str]) -> str:
+        """Infer appropriate 2D GIF state from 3D kinematics/visor tags."""
+        v_str = " ".join(visor_tags)
+        k_str = " ".join(kinematics)
+        b_str = " ".join(blendshapes)
+
+        if "solver_x" in v_str:
+            return "cyn_solver_x.gif"
+        if "error_glitch" in v_str or "head_twitch_jitter" in k_str or "glitch" in k_str:
+            return "cyn_glitch.gif"
+        if "smile_arcs" in v_str or "creepy_smile_wide" in b_str:
+            return "cyn_creepy_smile.gif"
+        if "creepy_curtsy" in k_str:
+            return "cyn_curtsy.gif"
+        if "reach_forward" in k_str:
+            return "cyn_reach.gif"
+        if "crawl_closer" in k_str or "squint_suspicious" in v_str:
+            return "cyn_inspect.gif"
+        if "slump_powersave" in k_str or "blink_shutter" in v_str:
+            return "cyn_sleep.gif"
+        if "head_tilt_45_r" in k_str or "head_tilt_45_l" in k_str:
+            return "cyn_tilt_head.gif"
+
+        return "cyn_idle.gif"
+
+    @staticmethod
+    def infer_3d_from_gif(gif_name: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """Map 2D GIF filename back to 3D anim, visor, and blendshape."""
+        gif = gif_name.lower().strip()
+        if "solver_x" in gif:
+            return ("idle_sway", "solver_x", None)
+        if "glitch" in gif:
+            return ("head_twitch_jitter", "error_glitch", None)
+        if "creepy_smile" in gif:
+            return ("head_tilt_45_r", "smile_arcs", "creepy_smile_wide")
+        if "curtsy" in gif:
+            return ("creepy_curtsy", "normal_eyes", None)
+        if "reach" in gif:
+            return ("reach_forward", "normal_eyes", None)
+        if "inspect" in gif:
+            return ("crawl_closer", "squint_suspicious", None)
+        if "sleep" in gif:
+            return ("slump_powersave", "blink_shutter", None)
+        if "tilt" in gif:
+            return ("head_tilt_45_r", "normal_eyes", None)
+        return ("idle_sway", "normal_eyes", None)
 
     @staticmethod
     def map_visor_to_index(visor_tag: str) -> int:
