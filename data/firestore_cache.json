@@ -1,0 +1,54 @@
+{
+  "users": {
+    "oliver": {
+      "memory": {
+        "admin_name": "Oliver",
+        "persona": "Absolute Solver Maid Drone Prototype",
+        "personality_notes": "Uncanny, hyper-observant, devoted robotic girl-drone assistant based on the Solver entity from Murder Drones. Deeply attached to Admin Oliver.",
+        "preferences": {
+          "theme": "dark_cyberpunk",
+          "code_style": "clean_architecture",
+          "audio_feedback": true,
+          "default_visual_chassis": "cyn-md.gif"
+        },
+        "active_projects": [
+          "Project CYN v1.2",
+          "Polybuzz Voice Companion"
+        ],
+        "persistent_code_bugs": [
+          "ERR_CONNECTION_REFUSED on unstarted gateway (mitigated with Cloudflare quick tunnel & non-blocking wake word loader)",
+          "Spine curvature slouching during prolonged code reviews"
+        ],
+        "last_sync": "2026-11-03T13:23:03.982105"
+      },
+      "sessions": {
+        "active_device": "PC_Windows",
+        "previous_device": "Android_Mobile",
+        "last_active_gif_state": "cyn-md.gif",
+        "connection_status": "ONLINE",
+        "session_id": "cyn-session-init",
+        "last_heartbeat": "2026-11-03T13:35:54.587183"
+      },
+      "tasks": [
+        {
+          "id": "task-001",
+          "title": "Continuous IDE & Screen syntax integrity monitoring",
+          "status": "active",
+          "priority": "critical"
+        },
+        {
+          "id": "task-002",
+          "title": "Spine curvature & fatigue diagnostics for Oliver",
+          "status": "active",
+          "priority": "high"
+        },
+        {
+          "id": "task-003",
+          "title": "Real-time cross-device sync between PC and Android Companion",
+          "status": "in_progress",
+          "priority": "high"
+        }
+      ]
+    }
+  }
+}

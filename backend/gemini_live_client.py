@@ -14,6 +14,7 @@ import os
 from typing import AsyncGenerator, Callable, Optional
 
 from cyn_prompt import CYN_SYSTEM_PROMPT
+from cyn_firestore_sync import firestore_sync
 from audio_dsp_parser import AudioDspParser, ParsedCynMessage
 
 logger = logging.getLogger("CYN.GeminiLive")
@@ -52,7 +53,7 @@ class GeminiLiveBridge:
             config = types.LiveConnectConfig(
                 response_modalities=[types.Modality.AUDIO],
                 system_instruction=types.Content(
-                    parts=[types.Part(text=CYN_SYSTEM_PROMPT)]
+                    parts=[types.Part(text=f"{CYN_SYSTEM_PROMPT}\n\n{firestore_sync.generate_gemini_memory_context('PC_Windows')}")]
                 ),
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(

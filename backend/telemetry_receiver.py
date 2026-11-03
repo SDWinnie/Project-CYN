@@ -57,7 +57,7 @@ class TelemetryManager:
             )
 
         # Check for violent shake
-        if acceleration > 22.0:
+        if acceleration > 15.0:
             logger.info("Gyro shake detected")
             return (
                 "[sensor:gyro_shake] [anim:head_twitch_jitter] [visor:error_glitch] <audio: static_burst> "

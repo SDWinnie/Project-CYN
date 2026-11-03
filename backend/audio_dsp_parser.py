@@ -1,10 +1,11 @@
-"""Acoustic DSP and Kinematics Tag Parser for Project CYN.
+"""Acoustic DSP and Kinematics Tag Parser for Project CYN (v1.2).
 
 Parses:
 - 3D bracketed kinematics ([anim:...], [visor:...], [blend:...], etc.)
 - 2D animated GIF controller tags ([state:filename.gif])
-- inline DSP audio tags (<pitch:...>, <rate:...>, <audio:...>)
-- pre-statement state declarations (Statement:, Diagnostic:, etc.)
+- Touch & physical sensor tags ([touch:...], [sensor:...])
+- Inline DSP audio tags (<pitch:...>, <rate:...>, <audio:...>)
+- Pre-statement state declarations (Statement:, Diagnostic:, Sync Alert:, etc.)
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ class ParsedCynMessage:
     blendshapes: List[str] = field(default_factory=list)
     targets: List[str] = field(default_factory=list)
     physics_tags: List[str] = field(default_factory=list)
+    touch_tags: List[str] = field(default_factory=list)
+    sensor_tags: List[str] = field(default_factory=list)
     audio_cues: List[str] = field(default_factory=list)
     pitch_shifts: List[float] = field(default_factory=list)
     rate_shifts: List[float] = field(default_factory=list)
@@ -34,13 +37,14 @@ class ParsedCynMessage:
 
 KINEMATICS_RE = re.compile(r"\[(anim|visor|target|blend|physics|sensor|touch|state):([^\]]+)\]", re.IGNORECASE)
 DSP_TAG_RE = re.compile(r"<(pitch|rate|audio):\s*([^>]+)>", re.IGNORECASE)
-STATE_DECLARATION_RE = re.compile(r"^(Statement|Diagnostic|Warning|Observation|Query|Halt):\s*", re.IGNORECASE)
+STATE_DECLARATION_RE = re.compile(r"^(Statement|Diagnostic|Warning|Observation|Query|Sync Alert|Halt|Security Warning):\s*", re.IGNORECASE)
 
 LEVEL1_INTERRUPTS = {
     "visor:solver_x",
     "state:cyn_solver_x.gif",
     "anim:head_spin_180_horror",
     "halt",
+    "security warning",
 }
 
 
@@ -55,6 +59,8 @@ class AudioDspParser:
         blendshapes: List[str] = []
         targets: List[str] = []
         physics_tags: List[str] = []
+        touch_tags: List[str] = []
+        sensor_tags: List[str] = []
         audio_cues: List[str] = []
         pitch_shifts: List[float] = []
         rate_shifts: List[float] = []
@@ -82,6 +88,10 @@ class AudioDspParser:
                 targets.append(tag_val_lower)
             elif tag_type == "physics":
                 physics_tags.append(tag_val_lower)
+            elif tag_type == "touch":
+                touch_tags.append(tag_val_lower)
+            elif tag_type == "sensor":
+                sensor_tags.append(tag_val_lower)
             elif tag_type == "state":
                 state_gifs.append(tag_val)
 
@@ -139,6 +149,8 @@ class AudioDspParser:
             blendshapes=blendshapes,
             targets=targets,
             physics_tags=physics_tags,
+            touch_tags=touch_tags,
+            sensor_tags=sensor_tags,
             audio_cues=audio_cues,
             pitch_shifts=pitch_shifts,
             rate_shifts=rate_shifts,
@@ -171,7 +183,8 @@ class AudioDspParser:
         if "head_tilt_45_r" in k_str or "head_tilt_45_l" in k_str:
             return "cyn_tilt_head.gif"
 
-        return "cyn_idle.gif"
+        # Default idle state in v1.2 is cyn-md.gif (Chibi Solver CYN)
+        return "cyn-md.gif"
 
     @staticmethod
     def infer_3d_from_gif(gif_name: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -193,6 +206,8 @@ class AudioDspParser:
             return ("slump_powersave", "blink_shutter", None)
         if "tilt" in gif:
             return ("head_tilt_45_r", "normal_eyes", None)
+        if "cyn-md" in gif:
+            return ("idle_sway", "solver_x", None)
         return ("idle_sway", "normal_eyes", None)
 
     @staticmethod

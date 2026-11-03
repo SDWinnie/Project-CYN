@@ -1,150 +1,130 @@
-# PROJECT CYN (v7.0 FULL-SPECTRUM EDITION)
+# PROJECT CYN (v1.2 PRODUCTION RELEASE - ANTIGRAVITY ENGINE)
 
 ```
        .---.
       /     \    [ENTITY CODENAME: CYN]
-     | () () |   [IDENTITY: ABSOLUTE SOLVER / WORKER DRONE]
-      \  =  /    [MASTER: ADMIN OLIVER]
-       '---'     [INTELLIGENCE: GEMINI MULTIMODAL LIVE API]
+     | (X) (X) | [IDENTITY: ABSOLUTE SOLVER / WORKER DRONE PROTOTYPE]
+      \  :3 /    [OPERATOR / MASTER: ADMIN OLIVER]
+       '---'     [INTELLIGENCE: GEMINI MULTIMODAL API (API KEY AUTHENTICATED)]
+                 [MEMORY CORE: GOOGLE CLOUD FIRESTORE REAL-TIME SYNC]
 ```
 
-## System Architecture
+[![Live Web Avatar](https://img.shields.io/badge/Web%20Avatar-GitHub%20Pages-yellow?logo=github)](https://sdwinnie.github.io/Project-CYN/)
+[![Release v1.2.0](https://img.shields.io/badge/Release-v1.2.0-orange?logo=github)](https://github.com/SDWinnie/Project-CYN/releases/tag/v1.2.0)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Android%20%7C%20Web-blue)](#)
 
-Project CYN is a full-spectrum multimodal robotic companion embodying **CYN**, the Absolute Solver Worker Drone from *Murder Drones*. Built for pair-programming, technical surveillance, and physical desktop/mobile presence.
+---
+
+## 🌟 What's New in v1.2 (Production Release)
+
+1. **2D Chibi Solver CYN Viewport Chassis (`cyn-md.gif`)**:
+   - Official default idle visual state featuring the user's authentic **Chibi Solver CYN Prototype**.
+   - Procedural head-bobbing, slight rotation sway, and yellow X Solver eye pulsation with clean alpha transparency.
+   - Fully integrated across Windows Desktop Overlay, Web Avatar Dual-Rig Viewport, and Android Mobile Companion.
+
+2. **Persistent Memory Core: Google Cloud Firestore Synchronization**:
+   - Real-time document store schema under `/users/oliver/`:
+     * `/users/oliver/memory`: Long-term personality notes, active project names, and persistent bug radar.
+     * `/users/oliver/sessions`: Cross-device state tracking, active device flags (`PC_Windows` vs `Android_Mobile`), and last active GIF state.
+     * `/users/oliver/tasks`: Real-time task roster, code review queue, and posture reminders.
+   - **Cross-Device Continuity Protocol**: Automatically detects when Oliver migrates between PC and Mobile, triggering instant continuity acknowledgments:
+     `[state:cyn-md.gif] <audio: servo_whirr> Sync Alert: Telemetry retrieved from Firestore. Resuming session previously active on Android_Mobile. Welcome back to workstation, Oliver.`
+   - **Local Cache Fallback (`data/firestore_cache.json`)**: 100% functional out-of-the-box offline and during local development even without cloud service account keys.
+   - **Declarative `firestore.rules`**: Production-grade RBAC security rules authored specifically for the `/users/{userId}` hierarchy.
+
+3. **Master System Prompt v1.2 (Antigravity Engine)**:
+   - Full 7-section specification implemented in `backend/cyn_prompt.py`.
+   - Mandatory Section 7 Startup Handshake:
+     `[state:cyn_glitch.gif] <audio: static_burst> <audio: camera_shutter> Statement: Antigravity application runtime initialized...`
+   - Two-Phase Authorization Gate for destructive actions.
+   - Touch & mobile sensor telemetry (`[touch:headpat]`, `[touch:double_tap]`, `[sensor:shake_detected]`).
+
+---
+
+## 🖥️ System Architecture
 
 ```
 +-----------------------------------------------------------------------------------+
-|                           PROJECT CYN CORE ARCHITECTURE                           |
+|                           PROJECT CYN v1.2 ARCHITECTURE                           |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
-|  [RESIDENT BACKGROUND SERVICES]                                                    |
-|   ├── Windows Workstation: CynWindowsService (Tray Daemon, Startup Service)        |
-|   └── Android Companion: CynForegroundService (Foreground Daemon, BootReceiver)   |
+|  [PERSISTENT CLOUD MEMORY] (Google Cloud Firestore)                               |
+|   ├── /users/oliver/memory   -> Long-term preferences, bug radar, projects       |
+|   ├── /users/oliver/sessions -> Real-time device flag (PC_Windows / Android)      |
+|   ├── /users/oliver/tasks    -> Active IDE tasks & posture monitoring            |
+|   └── firestore.rules        -> Production-grade RBAC & domain validation         |
 |                                                                                   |
-|  [LOCAL POWER & WAKE-WORD]                                                        |
-|   ├── openWakeWord / RMS Acoustic Trigger ('CYN' /s/ /ih/ /n/ threshold 0.65)    |
-|   └── Global Hotkey (Ctrl + Space) & 120s Inactivity Dormant Sleep Loop           |
+|  [DUAL VISUAL ENGINE RUNTIMES]                                                    |
+|   ├── 2D Animated GIF Viewport: Chibi Solver CYN (cyn-md.gif) + 9 State Atlas     |
+|   └── 3D WebGL VRM Rig: Procedural Emissive Visor Shader + Dynamic Tendril Bones  |
 |                                                                                   |
-|  [INTELLIGENCE BACKEND]                                                           |
-|   ├── Gemini Multimodal Live API ('gemini-3.8-live' WebSocket bidirectional)      |
-|   ├── 16kHz Mono PCM Audio Stream + 1 FPS Optical Camera Snapshots               |
-|   └── Tag & DSP Interceptor (<pitch:...>, <audio:...>, [anim:...], [visor:...])   |
+|  [CLIENT APPLICATIONS]                                                            |
+|   ├── Windows Desktop: Frameless Transparent PyQt6 Overlay (Always on Top)       |
+|   ├── Android Mobile: Native Kotlin Companion App (Background Service + Sensors) |
+|   └── Web Avatar: Responsive Dual-Rig Viewport (Localhost & GitHub Pages)        |
 |                                                                                   |
-|  [3D WEBGL AVATAR RUNTIME] (Three.js WebGL + VRM 1.0)                             |
-|   ├── Custom Drone Rig: Cyn_Neck_Glitch, Solver_Tendril_01-04, Ribbon_Dynamic_L/R |
-|   ├── Procedural Emissive Visor Shader Atlas (7 Distinct States, 0-6)             |
-|   ├── Real-Time Animation Queue Manager (Priority Level 1, 2, 3 + 250ms Slerp)    |
-|   └── Damped Look-At Manager ([target:look_at_face / hands / void])              |
-|                                                                                   |
-|  [TWO-PHASE SAFETY GATE]                                                          |
-|   └── Intercepts Destructive Ops ('Confirm Authorization' / 'Abort')              |
-|                                                                                   |
-|  [GITHUB RELEASES & SIMULATOR]                                                    |
-|   ├── GitHub Actions CI/CD (.github/workflows/cyn_release.yml)                    |
-|   └── Standalone Offline Simulator (simulator/cyn_simulator.py)                   |
+|  [COMMUNICATION CONDUITS]                                                         |
+|   ├── Localhost Gateway (ws://localhost:8080/ws/cyn)                              |
+|   └── Cloudflare Quick Tunnel Relay (https://*.trycloudflare.com)                 |
 +-----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## 1. Windows Desktop Background Service
+## 🚀 Quick Start Guide
 
-Project CYN runs as a resident background service in the Windows System Tray with autostart capability:
+### 1. Launch All Subsystems on Windows (Recommended)
+Double-click:
+```bat
+scripts\run_cyn_all.bat
+```
+This automatically boots:
+- The WebSocket Core Gateway (`http://localhost:8080`)
+- The Cloudflare Public Tunnel relay
+- The Frameless Transparent 2D Desktop Overlay featuring Chibi Solver CYN (`cyn-md.gif`)
 
-- **Autostart & Tray Icon**: Runs silently in the background on startup with an amber Absolute Solver cross icon.
-- **Global Wake Hook**: Continues monitoring for the wake-word "CYN" or global hotkey `Ctrl + Space` even when the window is closed or minimized.
-- **Tray Menu Actions**:
-  * Open 3D Avatar HUD (`http://localhost:8080`)
-  * Wake CYN (`Ctrl + Space`)
-  * Force Low-Power Sleep Partition
-  * Toggle "Run as Windows Startup Service" (Registry autostart)
-  * Exit Service
+### 2. Run Only the 2D Desktop Overlay App
+```bat
+scripts\run_cyn_desktop_2d.bat
+```
+*(Right-click on Chibi CYN anytime for the interactive menu: Cranial Headpat, Poke Visor, Code Inspection, Sleep, or Firestore Telemetry!)*
 
-### Running as a Service
-To install and start as a resident background autostart service:
-```cmd
-scripts\install_windows_service.bat
+### 3. Web & Mobile Browser Simulation
+Open your browser to:
+- **Localhost**: [http://localhost:8080](http://localhost:8080)
+- **GitHub Pages (No Installation Required)**: [https://sdwinnie.github.io/Project-CYN/](https://sdwinnie.github.io/Project-CYN/)
+
+### 4. Run Subsystem Verification Tests
+```bash
+python scripts/test_dsp_parser.py
 ```
-To run the service directly:
-```cmd
-python backend/cyn_tray_service.py
-```
-To compile to a standalone Windows executable (`dist/CYN_Desktop_Service/CYN_Desktop_Service.exe`):
-```cmd
-scripts\build_windows_exe.bat
-```
+*Executes all 8 subsystem tests including DSP kinematics, Visor mapping, Two-Phase Authorization Gate, Mobile Telemetry, 2D Asset validation, v1.2 Antigravity handshake, and Firestore cross-device synchronization.*
 
 ---
 
-## 2. Android Mobile Companion (Foreground Service)
+## 📦 Downloads & Releases
 
-The Android companion (`android_companion/`) is designed as a persistent background daemon:
-
-- **Foreground Daemon (`CynForegroundService`)**:
-  * Persistent notification: `PROJECT CYN // Absolute Solver Daemon (Active & Connected)`.
-  * Runs uninterrupted in the background even when the phone screen is locked.
-  * Auto-starts on phone reboot via `CynBootReceiver`.
-- **Sensors & Real-Time Telemetry**:
-  * `Sensor.TYPE_ACCELEROMETER`: Detects sudden physical chassis turbulence ($\Delta > 20 \text{ m/s}^2$) and dispatches `[sensor:gyro_shake]`.
-  * `BatteryManager`: Monitors battery levels and dispatches `[sensor:battery_low]` when $<20\%$.
-- **3D Avatar WebView**:
-  * Hardware-accelerated WebGL viewport locked to the **Close-Up Bust portrait frame**.
-  * Interactive cranial touch (`[touch:headpat]`) and glass poke (`[touch:visor_poke]`).
-
-### Compiling and Installing the APK
-Ready-to-install debug/release APK is located at:
-```
-releases/CYN-Companion-v1.0.apk
-```
-Or compile fresh with Gradle:
-```cmd
-scripts\build_android_apk.bat
-```
+Pre-built binaries are available on the [GitHub Releases page](https://github.com/SDWinnie/Project-CYN/releases/tag/v1.2.0):
+- **Windows Desktop Overlay**: `CYN-Desktop-Overlay-2D-v1.2.0.zip`
+- **Android Companion APK**: `CYN-Companion-v1.2.0.apk`
 
 ---
 
-## 3. GitHub Release & Simulator Engine
+## 📜 2D Animated GIF State Library
 
-For demonstration and testing on GitHub without needing a real microphone or API key:
-
-### Run the Offline Simulator
-Simulates all 10 Golden Benchmark Scenarios, tag parsing, sensor hooks, and audio parameters:
-```cmd
-scripts\run_simulator.bat
-```
-Or:
-```cmd
-python simulator/cyn_simulator.py
-```
-
-### GitHub Actions CI/CD (`.github/workflows/cyn_release.yml`)
-When pushed to GitHub:
-1. Compiles Windows desktop service executable (`CYN_Desktop_Service_Windows.zip`).
-2. Compiles Android APK (`app-debug.apk` / `app-release.apk`).
-3. Runs the automated verification suite.
-4. Publishes GitHub Releases with release assets attached automatically on git tag push (`v*`).
+| State Tag | Asset Filename | Animation Description |
+|---|---|---|
+| `[state:cyn-md.gif]` | `cyn-md.gif` | **Default Idle State**: Chibi Solver CYN with yellow X eyes, neck stitching, black ribbon, bobbing/wiggling head motion |
+| `[state:cyn_tilt_head.gif]` | `cyn_tilt_head.gif` | Head snapped 45° to the side in uncanny curiosity |
+| `[state:cyn_glitch.gif]` | `cyn_glitch.gif` | Frame-drop jitter, electrical scanline noise, and shaking sprite |
+| `[state:cyn_solver_x.gif]` | `cyn_solver_x.gif` | Enhanced yellow Absolute Solver cross glowing across eyes/visor |
+| `[state:cyn_creepy_smile.gif]` | `cyn_creepy_smile.gif` | Unnaturally wide porcelain grin (headpat / affection received) |
+| `[state:cyn_curtsy.gif]` | `cyn_curtsy.gif` | Stiff, robotic Victorian maid bow (greeting / diagnostic handshake) |
+| `[state:cyn_reach.gif]` | `cyn_reach.gif` | Robotic hand extends forward touching the desktop screen glass |
+| `[state:cyn_inspect.gif]` | `cyn_inspect.gif` | Leaning in close to scrutinize screen code or IDE syntax |
+| `[state:cyn_sleep.gif]` | `cyn_sleep.gif` | Slumped forward in dormant low-power powersave mode |
 
 ---
 
-## 4. Visor Emissive Shader Atlas (`[visor:...]`)
-
-The visor plane renders an unlit emissive procedural shader atlas:
-| Index | Tag | Visual Description |
-|:---:|:---|:---|
-| **0** | `[visor:normal_eyes]` | Rounded yellow-amber digital pill capsules |
-| **1** | `[visor:solver_x]` | Radiant yellow Absolute Solver cross sigil |
-| **2** | `[visor:smile_arcs]` | Inverted curved crescent eye arcs |
-| **3** | `[visor:squint_suspicious]`| Narrow horizontal scanning slits |
-| **4** | `[visor:blink_shutter]` | Black unlit matrix, LEDs extinguished |
-| **5** | `[visor:tear_oil]` | Black dripping viscous fluid particles |
-| **6** | `[visor:error_glitch]` | Chaotic noise artifact scanlines |
-
----
-
-## 5. Diagnostics and Testing
-
-To verify all parsers, safety gate, visor mapping, and mobile telemetry:
-```cmd
-python scripts\test_dsp_parser.py
-```
-All tests verify 100% compliance with Section 1 through 8.
+## 🛡️ License & Safety Guardrails
+Project CYN is engineered as an uncanny, devoted AI companion for Admin Oliver. All destructive system operations are subject to a **Two-Phase Authorization Gate** requiring verbal confirmation before execution.

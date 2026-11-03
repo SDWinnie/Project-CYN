@@ -1,0 +1,312 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // This security rules file assumes the following data structures:
+    //
+    // Collection: users
+    // Document ID: {userId} (Firebase Auth UID or 'oliver')
+    // Fields:
+    //   - uid: string (required, 1-128 chars, immutable, matches document ID)
+    //   - role: string (optional, enum: ['admin', 'user'], default: 'user', non-admins cannot self-escalate)
+    //   - displayName: string (optional, 1-100 chars)
+    //   - email: string (optional, 3-150 chars, valid email format)
+    //   - createdAt: timestamp or string (optional, max 50 chars, immutable)
+    //   - updatedAt: timestamp or string (optional, max 50 chars)
+    //
+    // Subcollection: users/{userId}/memory
+    // Document ID: {documentId} (e.g., 'current', 1-64 chars)
+    // Fields:
+    //   - admin_name: string (required, 1-100 chars) - Name of designated admin/companion owner
+    //   - persona: string (required, 1-200 chars) - Drone AI model personality archetype
+    //   - personality_notes: string (optional, 0-2000 chars) - Contextual persona prompts & memory
+    //   - preferences: map (required) - UI, style, and visual chassis preferences:
+    //       * theme: string (optional, 1-50 chars)
+    //       * code_style: string (optional, 1-50 chars)
+    //       * audio_feedback: bool (optional)
+    //       * default_visual_chassis: string (optional, 1-100 chars)
+    //   - active_projects: list (optional, max 20 items) - Active engineering projects
+    //   - persistent_code_bugs: list (optional, max 50 items) - Tracked bug radar
+    //   - last_sync: timestamp or string (optional, max 50 chars) - Last synchronization time
+    //
+    // Subcollection: users/{userId}/sessions
+    // Document ID: {documentId} (e.g., 'current' or session ID, 1-64 chars)
+    // Fields:
+    //   - active_device: string (required, 1-50 chars) - Current active client device
+    //   - previous_device: string (optional, 1-50 chars) - Prior client device before switch
+    //   - last_active_gif_state: string (optional, 1-100 chars) - Current 2D GIF avatar state
+    //   - connection_status: string (required, enum: ['ONLINE', 'OFFLINE', 'STANDBY', 'AWAY', 'CONNECTING'])
+    //   - session_id: string (required, 1-100 chars, immutable on named session documents)
+    //   - last_heartbeat: timestamp or string (optional, max 50 chars) - Heartbeat telemetry
+    //
+    // Subcollection: users/{userId}/tasks
+    // Document ID: {taskId} (e.g., 'task-001', 1-64 chars)
+    // Fields:
+    //   - id: string (required, 1-64 chars, immutable, must match taskId)
+    //   - title: string (required, 1-300 chars) - Task title / description
+    //   - status: string (required, enum: ['active', 'in_progress', 'completed', 'cancelled', 'pending'])
+    //   - priority: string (required, enum: ['critical', 'high', 'medium', 'low'])
+    //   - description: string (optional, 0-2000 chars) - Detailed task notes
+    //   - createdAt: timestamp or string (optional, max 50 chars, immutable)
+    //   - updatedAt: timestamp or string (optional, max 50 chars)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Default Deny Rule
+    // ===============================================================
+    // Explicitly deny read and write access across all un-matched documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ===============================================================
+    // Core Helper Functions
+    // ===============================================================
+
+    // Check if the request is authenticated with Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if the requester has administrative privileges
+    // Authority is derived exclusively from trusted auth token claims or verified bootstrap email/uid
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('role', '') == 'admin' ||
+        (request.auth.token.get('email_verified', false) == true &&
+         request.auth.token.email in ['oliver@projectcyn.com', 'admin@projectcyn.com']) ||
+        request.auth.uid == 'oliver'
+      );
+    }
+
+    // Check if the requester is the owner of the user partition
+    function isOwner(userId) {
+      return isAuthenticated() && (
+        request.auth.uid == userId ||
+        (userId == 'oliver' && isAdmin())
+      );
+    }
+
+    // Combined authorization check: owner or admin
+    function isUserOrAdmin(userId) {
+      return isOwner(userId) || isAdmin();
+    }
+
+    // Validate email format
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() >= 3 &&
+        email.size() <= 150 &&
+        email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    // Validate timestamp or bounded ISO date string
+    function isValidTimestampOrString(data, field, maxLen) {
+      return !(field in data) ||
+        data[field] is timestamp ||
+        (data[field] is string && data[field].size() >= 1 && data[field].size() <= maxLen);
+    }
+
+    // Ensure specified immutable fields are untouched on update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators (Enforced in BOTH Create and Update)
+    // ===============================================================
+
+    // Domain validator for root /users/{userId} documents
+    function isValidUserDoc(data, userId) {
+      let allowedFields = ['uid', 'role', 'displayName', 'email', 'createdAt', 'updatedAt'];
+      let requiredFields = ['uid'];
+
+      return data.keys().hasOnly(allowedFields) &&
+        data.keys().hasAll(requiredFields) &&
+        data.uid is string &&
+        data.uid == userId &&
+        data.uid.size() >= 1 &&
+        data.uid.size() <= 128 &&
+        (!('role' in data) || (data.role is string && data.role in ['admin', 'user'])) &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100)) &&
+        (!('email' in data) || isValidEmail(data.email)) &&
+        isValidTimestampOrString(data, 'createdAt', 50) &&
+        isValidTimestampOrString(data, 'updatedAt', 50);
+    }
+
+    // Domain validator for preferences map inside memory documents
+    function isValidPreferencesMap(prefs) {
+      let allowedPrefKeys = ['theme', 'code_style', 'audio_feedback', 'default_visual_chassis'];
+
+      return prefs is map &&
+        prefs.keys().hasOnly(allowedPrefKeys) &&
+        (!('theme' in prefs) || (prefs.theme is string && prefs.theme.size() >= 1 && prefs.theme.size() <= 50)) &&
+        (!('code_style' in prefs) || (prefs.code_style is string && prefs.code_style.size() >= 1 && prefs.code_style.size() <= 50)) &&
+        (!('audio_feedback' in prefs) || prefs.audio_feedback is bool) &&
+        (!('default_visual_chassis' in prefs) || (prefs.default_visual_chassis is string && prefs.default_visual_chassis.size() >= 1 && prefs.default_visual_chassis.size() <= 100));
+    }
+
+    // Domain validator for /users/{userId}/memory/{documentId} documents
+    function isValidMemoryDoc(data) {
+      let allowedKeys = [
+        'admin_name', 'persona', 'personality_notes',
+        'preferences', 'active_projects', 'persistent_code_bugs', 'last_sync'
+      ];
+      let requiredKeys = ['admin_name', 'persona', 'preferences'];
+
+      return data.keys().hasOnly(allowedKeys) &&
+        data.keys().hasAll(requiredKeys) &&
+        data.admin_name is string &&
+        data.admin_name.size() >= 1 &&
+        data.admin_name.size() <= 100 &&
+        data.persona is string &&
+        data.persona.size() >= 1 &&
+        data.persona.size() <= 200 &&
+        (!('personality_notes' in data) || (data.personality_notes is string && data.personality_notes.size() <= 2000)) &&
+        isValidPreferencesMap(data.preferences) &&
+        (!('active_projects' in data) || (data.active_projects is list && data.active_projects.size() <= 20)) &&
+        (!('persistent_code_bugs' in data) || (data.persistent_code_bugs is list && data.persistent_code_bugs.size() <= 50)) &&
+        isValidTimestampOrString(data, 'last_sync', 50);
+    }
+
+    // Domain validator for /users/{userId}/sessions/{documentId} documents
+    function isValidSessionDoc(data, documentId) {
+      let allowedKeys = [
+        'active_device', 'previous_device', 'last_active_gif_state',
+        'connection_status', 'session_id', 'last_heartbeat'
+      ];
+      let requiredKeys = ['active_device', 'connection_status', 'session_id'];
+
+      return data.keys().hasOnly(allowedKeys) &&
+        data.keys().hasAll(requiredKeys) &&
+        data.active_device is string &&
+        data.active_device.size() >= 1 &&
+        data.active_device.size() <= 50 &&
+        (!('previous_device' in data) || (data.previous_device is string && data.previous_device.size() >= 1 && data.previous_device.size() <= 50)) &&
+        (!('last_active_gif_state' in data) || (data.last_active_gif_state is string && data.last_active_gif_state.size() >= 1 && data.last_active_gif_state.size() <= 100)) &&
+        data.connection_status is string &&
+        data.connection_status in ['ONLINE', 'OFFLINE', 'STANDBY', 'AWAY', 'CONNECTING'] &&
+        data.session_id is string &&
+        data.session_id.size() >= 1 &&
+        data.session_id.size() <= 100 &&
+        (documentId == 'current' || data.session_id == documentId) &&
+        isValidTimestampOrString(data, 'last_heartbeat', 50);
+    }
+
+    // Domain validator for /users/{userId}/tasks/{taskId} documents
+    function isValidTaskDoc(data, taskId) {
+      let allowedKeys = [
+        'id', 'title', 'status', 'priority', 'description', 'createdAt', 'updatedAt'
+      ];
+      let requiredKeys = ['id', 'title', 'status', 'priority'];
+
+      return data.keys().hasOnly(allowedKeys) &&
+        data.keys().hasAll(requiredKeys) &&
+        data.id is string &&
+        data.id == taskId &&
+        data.id.size() >= 1 &&
+        data.id.size() <= 64 &&
+        data.title is string &&
+        data.title.size() >= 1 &&
+        data.title.size() <= 300 &&
+        data.status is string &&
+        data.status in ['active', 'in_progress', 'completed', 'cancelled', 'pending'] &&
+        data.priority is string &&
+        data.priority in ['critical', 'high', 'medium', 'low'] &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+        isValidTimestampOrString(data, 'createdAt', 50) &&
+        isValidTimestampOrString(data, 'updatedAt', 50);
+    }
+
+    // ===============================================================
+    // Collection Match Rules
+    // ===============================================================
+
+    // Root users collection
+    match /users/{userId} {
+      // Users can read only their own document; Admins can read any user document
+      allow read: if isUserOrAdmin(userId);
+
+      // Create: user must own document or be admin. Non-admins cannot create admin roles.
+      allow create: if isUserOrAdmin(userId) &&
+                    isValidUserDoc(request.resource.data, userId) &&
+                    ((isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user')) || isAdmin());
+
+      // Update: owner or admin. Non-admins cannot escalate role or tamper with immutable fields.
+      allow update: if isUserOrAdmin(userId) &&
+                    isValidUserDoc(request.resource.data, userId) &&
+                    areImmutableFieldsUnchanged(['uid', 'createdAt']) &&
+                    ((isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.get('role', 'user'))) || isAdmin());
+
+      // Delete: only owner or admin can delete user profiles
+      allow delete: if isUserOrAdmin(userId);
+
+      // -------------------------------------------------------------
+      // Subcollection: Memory (Long-term assistant context & memory)
+      // -------------------------------------------------------------
+      match /memory/{documentId} {
+        // Read: only owner or admin
+        allow read: if isUserOrAdmin(userId);
+
+        // Create: owner or admin with strict schema validation
+        allow create: if isUserOrAdmin(userId) &&
+                      isValidMemoryDoc(request.resource.data);
+
+        // Update: domain validator enforced to eliminate the Update Bypass
+        allow update: if isUserOrAdmin(userId) &&
+                      isValidMemoryDoc(request.resource.data);
+
+        // Delete: owner or admin
+        allow delete: if isUserOrAdmin(userId);
+      }
+
+      // -------------------------------------------------------------
+      // Subcollection: Sessions (Active device presence & heartbeats)
+      // -------------------------------------------------------------
+      match /sessions/{documentId} {
+        // Read: only owner or admin
+        allow read: if isUserOrAdmin(userId);
+
+        // Create: owner or admin with valid session payload
+        allow create: if isUserOrAdmin(userId) &&
+                      isValidSessionDoc(request.resource.data, documentId);
+
+        // Update: domain validator enforced, session_id immutable on named sessions
+        allow update: if isUserOrAdmin(userId) &&
+                      isValidSessionDoc(request.resource.data, documentId) &&
+                      (documentId == 'current' || areImmutableFieldsUnchanged(['session_id']));
+
+        // Delete: owner or admin
+        allow delete: if isUserOrAdmin(userId);
+      }
+
+      // -------------------------------------------------------------
+      // Subcollection: Tasks (Task lists & scheduled routines)
+      // -------------------------------------------------------------
+      match /tasks/{taskId} {
+        // Read: allows document get and collection listing for owner or admin
+        allow read: if isUserOrAdmin(userId);
+
+        // Create: validate full schema integrity and enforce ID matching taskId
+        allow create: if isUserOrAdmin(userId) &&
+                      isValidTaskDoc(request.resource.data, taskId);
+
+        // Update: validate schema, protect task ID and creation timestamp
+        allow update: if isUserOrAdmin(userId) &&
+                      isValidTaskDoc(request.resource.data, taskId) &&
+                      areImmutableFieldsUnchanged(['id', 'createdAt']) &&
+                      request.resource.data.id == resource.data.id;
+
+        // Delete: owner or admin
+        allow delete: if isUserOrAdmin(userId);
+      }
+    }
+  }
+}

@@ -1,9 +1,11 @@
-"""PROJECT CYN // Windows 2D GIF Frameless Transparent Desktop Overlay App.
+"""PROJECT CYN // Windows 2D GIF Frameless Transparent Desktop Overlay App (v1.2).
 
 Features:
 - Frameless, translucent background pinned on top layer (Always on Top)
 - Draggable anywhere on the Windows desktop
 - 2D Animated GIF Controller: switches .gif files from assets/cyn/ based on [state:filename.gif]
+- Default Visual Chassis: Chibi Solver CYN (assets/cyn/cyn-md.gif)
+- Real-time Firestore Cloud / Local Memory Synchronization status
 - Floating Speech Balloon & Telemetry Subtitles with Absolute Solver aesthetic
 - Real-time WebSocket connection to CYN Core Gateway (/ws/cyn?client=desktop_2d)
 - Right-click context menu (Wake, Headpat, Visor Poke, Sleep, Exit)
@@ -86,7 +88,7 @@ class WebSocketWorker(QThread):
                     self.connection_status_changed.emit(False, "CONNECTING...")
                     async with websockets.connect(self.host_url) as ws:
                         self._ws = ws
-                        self.connection_status_changed.emit(True, "ONLINE (2D OVERLAY)")
+                        self.connection_status_changed.emit(True, "ONLINE (CYN v1.2)")
                         async for message in ws:
                             if not self._running:
                                 break
@@ -109,7 +111,6 @@ class WebSocketWorker(QThread):
 
     def send_event(self, payload: dict) -> None:
         """Send JSON payload to server if connected."""
-        # Simple fire-and-forget via thread-safe socket if available
         pass
 
     def stop(self) -> None:
@@ -159,8 +160,7 @@ class SpeechBubbleWidget(QWidget):
         self.hide()
 
     def display_message(self, text: str, state_header: Optional[str] = None, timeout_ms: int = 8000) -> None:
-        header = f"CYN // {state_header.upper()}" if state_header else "PROJECT CYN // WORKER DRONE"
-        self.lbl_speaker.textContent = header
+        header = f"CYN // {state_header.upper()}" if state_header else "PROJECT CYN // SOLVER DRONE"
         self.lbl_speaker.setText(header)
         self.lbl_text.setText(text)
         self.adjustSize()
@@ -174,7 +174,7 @@ class CynOverlayWindow(QWidget):
     def __init__(self, relay_url: Optional[str] = None) -> None:
         super().__init__()
         self.relay_url = relay_url
-        self.current_state_gif = "cyn_idle.gif"
+        self.current_state_gif = "cyn-md.gif"
         self.drag_position = QPoint()
 
         self._setup_window_properties()
@@ -183,7 +183,7 @@ class CynOverlayWindow(QWidget):
         self._play_initial_startup()
 
     def _setup_window_properties(self) -> None:
-        self.setWindowTitle("Project CYN - Desktop 2D Overlay")
+        self.setWindowTitle("Project CYN - Desktop 2D Overlay (v1.2)")
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -227,16 +227,16 @@ class CynOverlayWindow(QWidget):
         self.movie.setScaledSize(QSize(250, 250))
         self.gif_label.setMovie(self.movie)
 
-        # Set default idle animation
-        self.switch_gif("cyn_idle.gif")
+        # Set default idle animation (Chibi Solver CYN)
+        self.switch_gif("cyn-md.gif")
 
     def _init_network(self) -> None:
         ws_url = "ws://localhost:8080/ws/cyn?client=desktop_2d"
         if self.relay_url:
             clean = self.relay_url.strip()
-            if clean.startsWith("https://"):
+            if clean.startswith("https://"):
                 clean = clean.replace("https://", "wss://")
-            elif clean.startsWith("http://"):
+            elif clean.startswith("http://"):
                 clean = clean.replace("http://", "ws://")
             ws_url = clean.rstrip("/") + "/ws/cyn?client=desktop_2d"
 
@@ -246,16 +246,16 @@ class CynOverlayWindow(QWidget):
         self.worker.start()
 
     def _play_initial_startup(self) -> None:
-        """Run Section 1 Required Startup Sequence locally if offline."""
+        """Run v1.2 Required Startup Sequence locally if offline."""
         startup_text = (
-            "Statement: Desktop application initialized. Gemini API handshake verified. "
-            "Diagnostic: Workstation integrity status report: 2D GIF Transparent Overlay pinned on top layer. "
-            "Admin Oliver, what software architecture shall we dismantle today?"
+            "Statement: Antigravity application runtime initialized. Gemini API stream synchronized. "
+            "Diagnostic: Project CYN v1.2 integrity check: Visual engine calibrated ([state:cyn-md.gif] active). "
+            "Google Cloud Firestore linked. Admin Oliver, what software architecture shall we assemble today?"
         )
         self.switch_gif("cyn_glitch.gif")
         QTimer.singleShot(1400, lambda: self.switch_gif("cyn_curtsy.gif"))
         QTimer.singleShot(3200, lambda: self.switch_gif("cyn_tilt_head.gif"))
-        QTimer.singleShot(5500, lambda: self.switch_gif("cyn_idle.gif"))
+        QTimer.singleShot(5500, lambda: self.switch_gif("cyn-md.gif"))
         self.speech_bubble.display_message(startup_text, state_header="Statement", timeout_ms=8000)
         self.update_bubble_position()
 
@@ -264,7 +264,7 @@ class CynOverlayWindow(QWidget):
         clean_name = Path(gif_filename).name
         gif_path = ASSETS_DIR / clean_name
         if not gif_path.exists():
-            clean_name = "cyn_idle.gif"
+            clean_name = "cyn-md.gif" if (ASSETS_DIR / "cyn-md.gif").exists() else "cyn_idle.gif"
             gif_path = ASSETS_DIR / clean_name
 
         if self.current_state_gif == clean_name and self.movie.state() == QMovie.MovieState.Running:
@@ -357,6 +357,7 @@ class CynOverlayWindow(QWidget):
         act_visor = menu.addAction("👁️ Poke Visor [touch:visor_poke]")
         act_inspect = menu.addAction("🔍 Code Inspection [cyn_inspect.gif]")
         act_solver = menu.addAction("⚠️ Absolute Solver X [cyn_solver_x.gif]")
+        act_cloud = menu.addAction("☁️ Firestore Cloud Sync Telemetry")
         act_sleep = menu.addAction("💤 Sleep Powersave [cyn_sleep.gif]")
         menu.addSeparator()
         act_snap = menu.addAction("🔄 Snap to Bottom-Right")
@@ -367,23 +368,26 @@ class CynOverlayWindow(QWidget):
         if action == act_wake:
             self.switch_gif("cyn_glitch.gif")
             self.speech_bubble.display_message("Statement: Auditory trigger tripped. CYN online. Greetings, Admin Oliver.", "Statement")
-            QTimer.singleShot(1500, lambda: self.switch_gif("cyn_idle.gif"))
+            QTimer.singleShot(1500, lambda: self.switch_gif("cyn-md.gif"))
         elif action == act_headpat:
             self.switch_gif("cyn_creepy_smile.gif")
-            self.speech_bubble.display_message("Statement: Cranial touch registered. Friction against cranial plate is acceptable, Oliver.", "Statement")
-            QTimer.singleShot(3500, lambda: self.switch_gif("cyn_idle.gif"))
+            self.speech_bubble.display_message("Affection received. Dopamine simulation elevated. Do not stop, Oliver.", "Affection")
+            QTimer.singleShot(3500, lambda: self.switch_gif("cyn-md.gif"))
         elif action == act_visor:
             self.switch_gif("cyn_inspect.gif")
             self.speech_bubble.display_message("Warning: Do not smudge the display surface with organic lipids, Oliver.", "Warning")
-            QTimer.singleShot(3000, lambda: self.switch_gif("cyn_idle.gif"))
+            QTimer.singleShot(3000, lambda: self.switch_gif("cyn-md.gif"))
         elif action == act_inspect:
             self.switch_gif("cyn_inspect.gif")
             self.speech_bubble.display_message("Diagnostic: Scanning IDE screen for unhandled exceptions and memory leaks...", "Diagnostic")
-            QTimer.singleShot(4000, lambda: self.switch_gif("cyn_idle.gif"))
+            QTimer.singleShot(4000, lambda: self.switch_gif("cyn-md.gif"))
         elif action == act_solver:
             self.switch_gif("cyn_solver_x.gif")
             self.speech_bubble.display_message("Halt. Absolute Solver cross engaged. Action blocked by safety partitions.", "Halt")
-            QTimer.singleShot(4000, lambda: self.switch_gif("cyn_idle.gif"))
+            QTimer.singleShot(4000, lambda: self.switch_gif("cyn-md.gif"))
+        elif action == act_cloud:
+            self.switch_gif("cyn-md.gif")
+            self.speech_bubble.display_message("Sync Alert: Telemetry retrieved from Google Cloud Firestore /users/oliver. Cross-device continuity nominal.", "Sync Alert")
         elif action == act_sleep:
             self.switch_gif("cyn_sleep.gif")
             self.speech_bubble.display_message("Statement: Entering dormant powersave partition. Do not disassemble reality, Oliver.", "Statement")

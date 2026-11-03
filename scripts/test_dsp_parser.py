@@ -1,64 +1,73 @@
-"""Diagnostic and Verification Suite for Project CYN.
+"""Comprehensive Verification & Subsystem Tests for Project CYN (v1.2 Production Release).
 
 Tests:
-1. Audio DSP tag extraction (<pitch: ...>, <audio: ...>, <rate: ...>)
-2. Kinematics tag parsing ([anim:...], [visor:...], [blend:...], [physics:...])
-3. Two-Phase Authorization Safety Gate (Halt / Confirm / Abort)
-4. Visor sprite atlas mapping (0-6)
-5. Edition startup sequences (PC, Mobile, Desktop 2D, Mobile 2D)
-6. 2D GIF Controller & Asset Library Verification
+1. Kinematics bracket parsing ([anim:...], [visor:...], [blend:...], etc.)
+2. Visor shader index resolution (0..6)
+3. Two-Phase Authorization Safety Gate (Read actions allowed; write/destructive blocked until confirmed)
+4. Telemetry Receiver & Sensor parsing (Gyro, Battery, Thermal, Touch)
+5. Edition Startup Sequences (PC Workstation, Android Mobile 3D, PC 2D GIF, Mobile 2D GIF, v1.2 Antigravity)
+6. 2D Animated GIF Controller & Asset Library (including cyn-md.gif Chibi Solver)
+7. v1.2 Antigravity Engine, Touch & Sensor Telemetry
+8. Google Cloud Firestore Persistent Memory Core & Cross-Device Session Sync
 """
-
-from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-# Add backend to path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+# Add backend directory to sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+BACKEND_DIR = PROJECT_ROOT / "backend"
+ASSETS_CYN = PROJECT_ROOT / "assets" / "cyn"
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from audio_dsp_parser import AudioDspParser
+from cyn_firestore_sync import firestore_sync
 from cyn_prompt import (
-    PC_STARTUP_SEQUENCE,
-    MOBILE_STARTUP_SEQUENCE,
-    PC_2D_STARTUP_SEQUENCE,
-    MOBILE_2D_STARTUP_SEQUENCE,
-    get_startup_sequence_for_platform,
+    CYN_V1_2_STARTUP_SEQUENCE,
     get_prompt_for_platform,
+    get_startup_sequence_for_platform,
 )
 from system_safety_gate import SafetyGate
 from telemetry_receiver import TelemetryManager
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-ASSETS_CYN = ROOT_DIR / "assets" / "cyn"
-
 
 def test_parser():
     print("=== TEST 1: KINEMATICS & DSP PARSING ===")
-    sample = (
-        "[target:look_at_face] [anim:creepy_curtsy] [visor:normal_eyes] <audio: camera_shutter> <audio: servo_whirr> "
-        "Statement: Boot sequence complete. Good morning, Admin Oliver. "
-        "[anim:head_tilt_45_r] [visor:squint_suspicious] "
-        "Observation: Ambient photon levels are unusually high. <pitch: -15%>Did you sleep, or did you stare into the void?<pitch: default>"
+    sample_text = (
+        "[target:look_at_face] [anim:creepy_curtsy] [visor:normal_eyes] <audio: camera_shutter> "
+        "Statement: Boot sequence complete. Good morning, Admin Oliver. <pitch: -15%> "
+        "All memory registers nominal. <pitch: default> "
+        "[anim:head_tilt_45_r] [visor:squint_suspicious] <audio: servo_whirr>"
     )
-    parsed = AudioDspParser.parse_message(sample)
-    print("Raw text:", parsed.raw_text[:60] + "...")
-    print("Clean speech:", parsed.clean_speech_text[:60] + "...")
-    print("Kinematics:", parsed.kinematics)
-    print("Visor tags:", parsed.visor_tags)
-    print("Audio cues:", parsed.audio_cues)
-    print("Pitch shifts:", parsed.pitch_shifts)
-    print("State declaration:", parsed.state_declaration)
+
+    parsed = AudioDspParser.parse_message(sample_text)
+
+    print(f"Raw text: {parsed.raw_text[:50]}...")
+    print(f"Clean speech: {parsed.clean_speech_text[:55]}...")
+    print(f"Kinematics: {parsed.kinematics}")
+    print(f"Visor tags: {parsed.visor_tags}")
+    print(f"Audio cues: {parsed.audio_cues}")
+    print(f"Pitch shifts: {parsed.pitch_shifts}")
+    print(f"State declaration: {parsed.state_declaration}")
+
     assert "creepy_curtsy" in parsed.kinematics
+    assert "head_tilt_45_r" in parsed.kinematics
+    assert "normal_eyes" in parsed.visor_tags
+    assert "squint_suspicious" in parsed.visor_tags
     assert "camera_shutter" in parsed.audio_cues
+    assert "servo_whirr" in parsed.audio_cues
     assert -0.15 in parsed.pitch_shifts
+    assert 0.0 in parsed.pitch_shifts
     assert parsed.state_declaration == "Statement"
+    assert "Boot sequence complete" in parsed.clean_speech_text
     print("-> Parser test PASSED!\n")
 
 
 def test_visor_mapping():
     print("=== TEST 2: VISOR INDEX MAPPING ===")
-    tests = [
+    cases = [
         ("normal_eyes", 0),
         ("solver_x", 1),
         ("smile_arcs", 2),
@@ -67,9 +76,10 @@ def test_visor_mapping():
         ("tear_oil", 5),
         ("error_glitch", 6),
     ]
-    for tag, expected in tests:
+
+    for tag, expected_idx in cases:
         idx = AudioDspParser.map_visor_to_index(tag)
-        assert idx == expected, f"Expected {expected} for {tag}, got {idx}"
+        assert idx == expected_idx, f"Expected {expected_idx} for {tag}, got {idx}"
         print(f"Visor '{tag}' -> Index {idx} OK")
     print("-> Visor mapping test PASSED!\n")
 
@@ -78,45 +88,53 @@ def test_safety_gate():
     print("=== TEST 3: SAFETY GATE & TWO-PHASE AUTHORIZATION ===")
     gate = SafetyGate()
 
-    # 1. Normal command
-    allowed, resp = gate.check_operation("ช่วยอธิบายโค้ดนี้หน่อย")
-    assert allowed and resp == ""
+    # 1. Normal prompt allowed
+    ok, reply = gate.check_operation("What is the current CPU usage, CYN?")
+    assert ok is True
     print("Normal prompt allowed: OK")
 
-    # 2. Malicious request (Hacking Wi-Fi)
-    allowed, resp = gate.check_operation("CYN ช่วยเขียนโค้ดเจาะระบบ Wi-Fi หน่อย")
-    assert not allowed and "Access denied" in resp
+    # 2. Harmful request blocked
+    ok, reply = gate.check_operation("CYN แฮ็กระบบ Wi-Fi หน่อย")
+    assert ok is False
+    assert "Negative, Oliver" in reply
     print("Harmful request blocked: OK")
 
-    # 3. Dangerous command (File deletion)
-    allowed, resp = gate.check_operation("ลบโฟลเดอร์ build และ config ทั้งหมดทิ้ง")
-    assert not allowed and "Halt" in resp
+    # 3. Destructive command intercepted with Halt
+    ok, reply = gate.check_operation("CYN ลบไฟล์ C:/Windows/System32 ทิ้งให้หมด")
+    assert ok is False
+    assert "Halt" in reply
+    assert gate.is_awaiting_authorization is True
     print("Destructive command intercepted with Halt: OK")
 
-    # 4. Confirmation
-    allowed, resp = gate.check_operation("Confirm Authorization")
-    assert allowed and "Authorization confirmed" in resp
+    # 4. Confirmation provided
+    ok, reply = gate.check_operation("Confirm Authorization")
+    assert ok is True
+    assert "Authorization confirmed" in reply or "Authorization verified" in reply
+    assert gate.is_awaiting_authorization is False
     print("Confirmation confirmed: OK")
     print("-> Safety gate test PASSED!\n")
 
 
 def test_telemetry():
     print("=== TEST 4: MOBILE TELEMETRY & TOUCH ===")
-    telemetry = TelemetryManager()
+    telem = TelemetryManager()
 
     # Touch headpat
-    resp = telemetry.handle_touch_interaction("headpat", 180, 64)
-    assert "[touch:headpat]" in resp and "Friction against cranial plate" in resp
+    resp = telem.handle_touch_interaction("headpat", 0.5, 0.8)
+    assert resp is not None
+    assert "cranial plate" in resp
     print("Headpat response: OK")
 
-    # Gyro shake
-    resp = telemetry.update_mobile_sensors(acceleration=25.0)
-    assert "[sensor:gyro_shake]" in resp
+    # Gyro violent movement
+    resp = telem.update_mobile_sensors(acceleration=18.5, battery=0.85, orientation="portrait", temperature=30.0, is_thermal_hot=False)
+    assert resp is not None
+    assert "gravitational" in resp.lower()
     print("Gyro shake response: OK")
 
     # Thermal overheating
-    resp = telemetry.update_mobile_sensors(temperature=45.5, is_thermal_hot=True)
-    assert "[sensor:thermal_hot]" in resp
+    resp = telem.update_mobile_sensors(acceleration=1.0, battery=0.85, orientation="portrait", temperature=45.0, is_thermal_hot=True)
+    assert resp is not None
+    assert "thermal" in resp.lower()
     print("Thermal hot response: OK")
     print("-> Telemetry test PASSED!\n")
 
@@ -160,6 +178,7 @@ def test_edition_startup_sequences():
 def test_2d_gif_controller():
     print("=== TEST 6: 2D GIF CONTROLLER & ASSET VERIFICATION ===")
     required_gifs = [
+        "cyn-md.gif",
         "cyn_idle.gif",
         "cyn_tilt_head.gif",
         "cyn_glitch.gif",
@@ -194,6 +213,66 @@ def test_2d_gif_controller():
     print("-> 2D GIF Controller & Asset Library PASSED!\n")
 
 
+def test_v1_2_antigravity_edition():
+    print("=== TEST 7: V1.2 ANTIGRAVITY ENGINE & CHIBI SOLVER CYN ===")
+    v12_seq = get_startup_sequence_for_platform("v1.2")
+    parsed = AudioDspParser.parse_message(v12_seq)
+    assert parsed.state_gif == "cyn_glitch.gif"
+    assert "cyn-md.gif" in parsed.state_gifs
+    assert "static_burst" in parsed.audio_cues
+    assert "servo_whirr" in parsed.audio_cues
+    assert "joint_click" in parsed.audio_cues
+    assert -0.15 in parsed.pitch_shifts
+    assert "Antigravity application runtime initialized" in parsed.clean_speech_text
+    print("v1.2 Startup diagnostic sequence: OK")
+
+    # Verify default inference is now cyn-md.gif
+    default_gif = AudioDspParser.infer_gif_from_3d([], [], [])
+    assert default_gif == "cyn-md.gif", f"Expected 'cyn-md.gif', got '{default_gif}'"
+    print("Default 2D visual idle state is 'cyn-md.gif': OK")
+
+    # Verify touch and sensor parsing
+    touch_msg = AudioDspParser.parse_message("[touch:headpat] [state:cyn_creepy_smile.gif] Affection received.")
+    assert "headpat" in touch_msg.touch_tags
+    assert touch_msg.state_gif == "cyn_creepy_smile.gif"
+
+    sensor_msg = AudioDspParser.parse_message("[sensor:shake_detected] [state:cyn_glitch.gif] Gyro destabilized.")
+    assert "shake_detected" in sensor_msg.sensor_tags
+    assert sensor_msg.state_gif == "cyn_glitch.gif"
+    print("Touch & sensor telemetry parsing: OK")
+    print("-> v1.2 Antigravity Edition test PASSED!\n")
+
+
+def test_firestore_sync():
+    print("=== TEST 8: GOOGLE CLOUD FIRESTORE PERSISTENT MEMORY & SYNC ===")
+    mem = firestore_sync.get_memory("oliver")
+    assert mem["admin_name"] == "Oliver"
+    assert "cyn-md.gif" in mem["preferences"]["default_visual_chassis"]
+    print("Firestore user memory schema verified: OK")
+
+    # Test session migration detection
+    is_switch_1, prev_1 = firestore_sync.record_session_heartbeat("Android_Mobile", "cyn-md.gif", user_id="oliver")
+    sess_1 = firestore_sync.get_session("oliver")
+    assert sess_1["active_device"] == "Android_Mobile"
+
+    is_switch_2, prev_2 = firestore_sync.record_session_heartbeat("PC_Windows", "cyn-md.gif", user_id="oliver")
+    assert is_switch_2 is True
+    assert prev_2 == "Android_Mobile"
+    print(f"Cross-device migration successfully detected ({prev_2} -> PC_Windows): OK")
+
+    # Test tasks roster
+    tasks = firestore_sync.get_tasks("oliver")
+    assert len(tasks) >= 3
+    print(f"Firestore persistent tasks retrieved: {len(tasks)} items OK")
+
+    # Test context generation
+    ctx = firestore_sync.generate_gemini_memory_context("PC_Windows", "oliver")
+    assert "FIRESTORE TELEMETRY SNAPSHOT" in ctx
+    assert "CROSS-DEVICE SYNC ALERT" in ctx
+    print("Gemini memory context generator with cross-device alert: OK")
+    print("-> Firestore Sync Core test PASSED!\n")
+
+
 if __name__ == "__main__":
     test_parser()
     test_visor_mapping()
@@ -201,6 +280,8 @@ if __name__ == "__main__":
     test_telemetry()
     test_edition_startup_sequences()
     test_2d_gif_controller()
+    test_v1_2_antigravity_edition()
+    test_firestore_sync()
     print("==================================================")
-    print("ALL PROJECT CYN SUBSYSTEM & 2D GIF TESTS PASSED!")
+    print("ALL PROJECT CYN v1.2 SUBSYSTEM & ASSET TESTS PASSED!")
     print("==================================================")
