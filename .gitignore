@@ -11,3 +11,5 @@ android_companion/local.properties
 releases/
 tools/
 backend/tunnel_url.txt
+
+reference_capri/

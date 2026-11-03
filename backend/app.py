@@ -30,6 +30,7 @@ STATIC_DIR = PROJECT_ROOT / "web_avatar"
 ASSETS_DIR = PROJECT_ROOT / "assets"
 
 from audio_dsp_parser import AudioDspParser, ParsedCynMessage
+from cyn_construct.ai.model_client import MultiModelClient
 from cyn_firestore_sync import firestore_sync
 from cyn_prompt import (
     CYN_V1_2_STARTUP_SEQUENCE,
@@ -62,6 +63,7 @@ class CynServer:
         self.gemini_bridge = GeminiLiveBridge(on_cyn_event=self._on_cyn_model_event)
         self.wake_detector = WakeWordDetector(on_state_change=self._on_wake_state_change)
         self.tunnel_relay = CloudflareTunnelRelay(port=self.port, on_url_ready=self._on_tunnel_url_ready)
+        self.multi_model = MultiModelClient()
 
         self._setup_routes()
 
@@ -70,6 +72,8 @@ class CynServer:
         self.app.router.add_get("/api/status", self.handle_status)
         self.app.router.add_get("/api/tunnel", self.handle_tunnel_info)
         self.app.router.add_post("/api/speak_test", self.handle_speak_test)
+        self.app.router.add_get("/api/models", self.handle_get_models)
+        self.app.router.add_post("/api/models", self.handle_post_models)
 
         # Firestore Persistent Memory Core APIs (v1.2)
         self.app.router.add_get("/api/firestore/memory", self.handle_get_memory)
