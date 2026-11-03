@@ -1,0 +1,345 @@
+/* Project CYN (v7.0 Full-Spectrum Edition) - Sci-Fi / Murder Drones Visor HUD */
+
+:root {
+  --cyn-amber: #ffcc00;
+  --cyn-amber-dim: #997a00;
+  --cyn-amber-glow: rgba(255, 204, 0, 0.45);
+  --cyn-void: #07070a;
+  --cyn-panel: rgba(16, 17, 23, 0.88);
+  --cyn-metal: #242630;
+  --cyn-text: #e0e2ec;
+  --cyn-red: #ff3344;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body {
+  background-color: var(--cyn-void);
+  color: var(--cyn-text);
+  font-family: 'Consolas', 'Courier New', monospace;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+#app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+}
+
+/* 3D Viewport */
+#viewport-container {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, #181924 0%, #08080c 100%);
+}
+
+#cyn-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Overlay Scanlines and Vignette */
+.scanlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.25) 50%
+  ), linear-gradient(
+    90deg,
+    rgba(255, 0, 0, 0.03),
+    rgba(0, 255, 0, 0.01),
+    rgba(0, 0, 255, 0.03)
+  );
+  background-size: 100% 3px, 6px 100%;
+  z-index: 10;
+}
+
+/* HUD Overlay on Viewport */
+.hud-overlay {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.hud-title {
+  font-size: 1.15rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: var(--cyn-amber);
+  text-shadow: 0 0 10px var(--cyn-amber-glow);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 204, 0, 0.15);
+  border: 1px solid var(--cyn-amber);
+  color: var(--cyn-amber);
+  text-transform: uppercase;
+}
+
+.status-badge.sleep {
+  background: rgba(100, 100, 120, 0.2);
+  border-color: #667;
+  color: #99a;
+}
+
+.status-badge.solver {
+  background: rgba(255, 204, 0, 0.3);
+  border-color: var(--cyn-amber);
+  animation: pulse-glow 1s infinite alternate;
+}
+
+@keyframes pulse-glow {
+  from { box-shadow: 0 0 4px var(--cyn-amber); }
+  to { box-shadow: 0 0 16px var(--cyn-amber); }
+}
+
+.hud-telemetry {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: #9aa;
+  line-height: 1.4;
+}
+
+/* Touch Action Zone Highlights */
+.touch-hint {
+  position: absolute;
+  bottom: 25px;
+  left: 20px;
+  font-size: 0.75rem;
+  color: #778;
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* Side Telemetry Console */
+#console-container {
+  width: 440px;
+  height: 100%;
+  background: var(--cyn-panel);
+  border-left: 1px solid var(--cyn-metal);
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+  backdrop-filter: blur(12px);
+}
+
+.console-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--cyn-metal);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.console-header h2 {
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+  color: var(--cyn-amber);
+}
+
+/* Visor Preview Box */
+.visor-preview-card {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--cyn-metal);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.visor-canvas-wrap {
+  width: 90px;
+  height: 50px;
+  background: #000;
+  border: 1px solid var(--cyn-amber-dim);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(255, 204, 0, 0.2);
+}
+
+#visor-preview-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.visor-meta {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.visor-meta-title {
+  color: var(--cyn-amber);
+  font-weight: bold;
+}
+
+/* Transcript Log */
+.transcript-box {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.transcript-entry {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid #556;
+}
+
+.transcript-entry.cyn {
+  border-left-color: var(--cyn-amber);
+  background: rgba(255, 204, 0, 0.04);
+}
+
+.transcript-entry.user {
+  border-left-color: #4da6ff;
+  background: rgba(77, 166, 255, 0.04);
+}
+
+.entry-speaker {
+  font-size: 0.72rem;
+  font-weight: bold;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.transcript-entry.cyn .entry-speaker { color: var(--cyn-amber); }
+.transcript-entry.user .entry-speaker { color: #4da6ff; }
+
+.tag-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(255, 204, 0, 0.18);
+  color: var(--cyn-amber);
+  font-size: 0.72rem;
+  margin-right: 4px;
+}
+
+/* Quick Actions & Scenario Bar */
+.control-panel {
+  padding: 14px 20px;
+  border-top: 1px solid var(--cyn-metal);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(10, 11, 15, 0.6);
+}
+
+.btn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.cyn-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--cyn-metal);
+  color: var(--cyn-text);
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.cyn-btn:hover {
+  background: rgba(255, 204, 0, 0.15);
+  border-color: var(--cyn-amber);
+  color: #fff;
+  box-shadow: 0 0 8px var(--cyn-amber-glow);
+}
+
+.cyn-btn.primary {
+  background: rgba(255, 204, 0, 0.2);
+  border-color: var(--cyn-amber);
+  color: var(--cyn-amber);
+  font-weight: bold;
+}
+
+.cyn-btn.primary:hover {
+  background: var(--cyn-amber);
+  color: #000;
+}
+
+.cyn-btn.active {
+  background: #ffcc00;
+  color: #000;
+  border-color: #ffcc00;
+  font-weight: bold;
+}
+
+/* Chat Input Bar */
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.cyn-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--cyn-metal);
+  padding: 10px 14px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.85rem;
+  border-radius: 4px;
+}
+
+.cyn-input:focus {
+  outline: none;
+  border-color: var(--cyn-amber);
+  box-shadow: 0 0 8px var(--cyn-amber-glow);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 860px) {
+  #app-container {
+    flex-direction: column;
+  }
+  #viewport-container {
+    height: 58vh;
+  }
+  #console-container {
+    width: 100%;
+    height: 42vh;
+    border-left: none;
+    border-top: 1px solid var(--cyn-metal);
+  }
+}

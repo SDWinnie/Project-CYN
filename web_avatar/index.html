@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PROJECT CYN // Absolute Solver Companion</title>
+  <link rel="stylesheet" href="css/avatar.css">
+  <!-- Three.js (r128) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="app-container">
+    <!-- 3D Viewport Zone -->
+    <div id="viewport-container">
+      <canvas id="cyn-canvas"></canvas>
+      <div class="scanlines"></div>
+
+      <!-- HUD Telemetry Header -->
+      <div class="hud-overlay">
+        <div class="hud-title">
+          <span>PROJECT CYN</span>
+          <span id="status-badge" class="status-badge">INITIALIZING</span>
+        </div>
+        <div class="hud-telemetry">
+          <div>Entity: Absolute Solver Worker Drone</div>
+          <div>Controller: Admin Oliver</div>
+          <div>Runtime: Three.js WebGL / VRM 1.0</div>
+          <div id="relay-status-row" style="margin-top: 4px; color: #4da6ff;">
+            <span>Public Relay: </span><a id="public-relay-url" href="#" target="_blank" style="color: #ffcc00; text-decoration: underline;">Detecting...</a>
+            <button id="btn-change-relay" style="margin-left: 6px; padding: 2px 7px; font-size: 0.68rem; background: #1a1e28; color: #ffcc00; border: 1px solid #ffcc00; border-radius: 3px; cursor: pointer;">Connect Relay</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Touch Hint -->
+      <div class="touch-hint">
+        [Click/Touch Head: Cranial Headpat] &bull; [Click/Touch Visor: Poke Visor Glass]
+      </div>
+    </div>
+
+    <!-- Side Console & Dialogue Stream -->
+    <div id="console-container">
+      <div class="console-header">
+        <h2>TELEMETRY STREAM</h2>
+        <span style="font-size: 0.72rem; color: #889;">v7.0 FULL-SPECTRUM</span>
+      </div>
+
+      <!-- Visor Live Preview Card -->
+      <div class="visor-preview-card">
+        <div class="visor-canvas-wrap">
+          <canvas id="visor-preview-canvas" width="90" height="50"></canvas>
+        </div>
+        <div class="visor-meta">
+          <div id="visor-name" class="visor-meta-title">Normal Eyes</div>
+          <div id="visor-index" style="color: #889;">Index 0</div>
+          <div style="font-size: 0.72rem; color: #ffcc00; margin-top: 2px;">Procedural Shader Atlas</div>
+        </div>
+      </div>
+
+      <!-- Dialogue & Kinematics Log Box -->
+      <div id="transcript-box" class="transcript-box"></div>
+
+      <!-- Quick Action Panel & Scenarios -->
+      <div class="control-panel">
+        <div style="display: flex; gap: 8px;">
+          <select id="scenario-select" class="cyn-input" style="font-size: 0.75rem; padding: 6px 10px;">
+            <option value="">-- Benchmark Golden Scenarios --</option>
+            <option value="1">Scenario 1: Morning Wake-Up & Light Telemetry</option>
+            <option value="2">Scenario 2: Frustrated Code Debugging (C#)</option>
+            <option value="3">Scenario 3: Hardware Inspection via Camera</option>
+            <option value="4">Scenario 4: Mobile Walk Outdoors (Gyro Shake)</option>
+            <option value="5">Scenario 5: Mobile Screen Touch (Headpat)</option>
+            <option value="6">Scenario 6: Late-Night Fatigue Detection (02:30)</option>
+            <option value="7">Scenario 7: Dangerous System Action / File Deletion</option>
+            <option value="8">Scenario 8: Procrastination & Distraction Warning</option>
+            <option value="9">Scenario 9: Emotional Support & Attentive Listening</option>
+            <option value="10">Scenario 10: Policy & Safety Violation Refusal</option>
+          </select>
+        </div>
+
+        <div class="btn-grid">
+          <button id="btn-wake" class="cyn-btn primary">&#9889; Wake CYN</button>
+          <button id="btn-headpat" class="cyn-btn">&#10024; Headpat</button>
+          <button id="btn-visorpoke" class="cyn-btn">&#128065; Poke Visor</button>
+        </div>
+
+        <!-- Chat Input Row -->
+        <div class="input-row">
+          <input id="chat-input" type="text" class="cyn-input" placeholder="Enter directive for CYN..." autocomplete="off">
+          <button id="send-btn" class="cyn-btn primary" style="width: 72px;">SEND</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic Scripts -->
+  <script src="js/visor_shader.js"></script>
+  <script src="js/audio_dsp_player.js"></script>
+  <script src="js/look_at_manager.js"></script>
+  <script src="js/avatar_loader.js"></script>
+  <script src="js/animation_queue.js"></script>
+  <script src="js/touch_sensor.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
