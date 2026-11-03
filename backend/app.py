@@ -25,6 +25,8 @@ CURRENT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = CURRENT_DIR.parent
 if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 STATIC_DIR = PROJECT_ROOT / "web_avatar"
 ASSETS_DIR = PROJECT_ROOT / "assets"
@@ -262,6 +264,21 @@ class CynServer:
                 "tasks": firestore_sync.get_tasks(user_id),
             })
         return web.json_response({"error": "unknown_action"}, status=400)
+
+    async def handle_get_models(self, request: web.Request) -> web.Response:
+        return web.json_response({
+            "current_model": self.multi_model.get_current_model(),
+            "available_models": self.multi_model.get_available_models(),
+        })
+
+    async def handle_post_models(self, request: web.Request) -> web.Response:
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid_json"}, status=400)
+        model_name = data.get("model", "gemini-2.5-flash")
+        self.multi_model.set_model(model_name)
+        return web.json_response({"status": "updated", "current_model": self.multi_model.get_current_model()})
 
     async def handle_speak_test(self, request: web.Request) -> web.Response:
         """Endpoint to test arbitrary CYN dialogue strings."""
