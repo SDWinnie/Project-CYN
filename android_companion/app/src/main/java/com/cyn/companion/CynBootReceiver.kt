@@ -1,0 +1,23 @@
+package com.cyn.companion
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.util.Log
+
+class CynBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+        if (intent?.action == Intent.ACTION_BOOT_COMPLETED && context != null) {
+            Log.i("CynBootReceiver", "Device boot detected. Auto-starting CYN Companion Service...")
+            val serviceIntent = Intent(context, CynForegroundService::class.java).apply {
+                action = CynForegroundService.ACTION_START
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        }
+    }
+}

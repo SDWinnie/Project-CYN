@@ -1,0 +1,7 @@
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="cyn_amber">#FFFFCC00</color>
+    <color name="cyn_dark">#FF07070A</color>
+    <color name="cyn_panel">#FF161720</color>
+</resources>

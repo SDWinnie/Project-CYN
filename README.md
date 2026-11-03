@@ -17,9 +17,9 @@ Project CYN is a full-spectrum multimodal robotic companion embodying **CYN**, t
 |                           PROJECT CYN CORE ARCHITECTURE                           |
 +-----------------------------------------------------------------------------------+
 |                                                                                   |
-|  [HOST PLATFORMS]                                                                 |
-|   ├── Windows Workstation (Primary Desktop Full-Torso Frame)                     |
-|   └── Android Mobile Client (Portable Companion Bust Frame + Gyro / Battery)      |
+|  [RESIDENT BACKGROUND SERVICES]                                                    |
+|   ├── Windows Workstation: CynWindowsService (Tray Daemon, Startup Service)        |
+|   └── Android Companion: CynForegroundService (Foreground Daemon, BootReceiver)   |
 |                                                                                   |
 |  [LOCAL POWER & WAKE-WORD]                                                        |
 |   ├── openWakeWord / RMS Acoustic Trigger ('CYN' /s/ /ih/ /n/ threshold 0.65)    |
@@ -39,45 +39,94 @@ Project CYN is a full-spectrum multimodal robotic companion embodying **CYN**, t
 |  [TWO-PHASE SAFETY GATE]                                                          |
 |   └── Intercepts Destructive Ops ('Confirm Authorization' / 'Abort')              |
 |                                                                                   |
+|  [GITHUB RELEASES & SIMULATOR]                                                    |
+|   ├── GitHub Actions CI/CD (.github/workflows/cyn_release.yml)                    |
+|   └── Standalone Offline Simulator (simulator/cyn_simulator.py)                   |
 +-----------------------------------------------------------------------------------+
 ```
 
 ---
 
-## Quick Start Guide
+## 1. Windows Desktop Background Service
 
-### 1. Requirements
-- Python 3.10+
-- Modern Web Browser (Chrome, Edge, Firefox, or Android Chrome)
-- `GEMINI_API_KEY` set in your environment variables:
-  ```cmd
-  set GEMINI_API_KEY=your_gemini_api_key_here
-  ```
+Project CYN runs as a resident background service in the Windows System Tray with autostart capability:
 
-### 2. Launching Desktop Workspace
-Run the one-click batch launcher or start the server via command line:
+- **Autostart & Tray Icon**: Runs silently in the background on startup with an amber Absolute Solver cross icon.
+- **Global Wake Hook**: Continues monitoring for the wake-word "CYN" or global hotkey `Ctrl + Space` even when the window is closed or minimized.
+- **Tray Menu Actions**:
+  * Open 3D Avatar HUD (`http://localhost:8080`)
+  * Wake CYN (`Ctrl + Space`)
+  * Force Low-Power Sleep Partition
+  * Toggle "Run as Windows Startup Service" (Registry autostart)
+  * Exit Service
+
+### Running as a Service
+To install and start as a resident background autostart service:
 ```cmd
-scripts\run_cyn_desktop.bat
+scripts\install_windows_service.bat
 ```
-Or manually:
+To run the service directly:
 ```cmd
-cd backend
-python app.py
+python backend/cyn_tray_service.py
 ```
-The console will start at:
+To compile to a standalone Windows executable (`dist/CYN_Desktop_Service/CYN_Desktop_Service.exe`):
+```cmd
+scripts\build_windows_exe.bat
 ```
-http://localhost:8080
-```
-
-### 3. Connecting Android Mobile Companion
-1. Connect your Android phone to the same local Wi-Fi / hotspot as your PC.
-2. Find your PC's local IP address (`ipconfig` in cmd, e.g., `192.168.1.50`).
-3. Open `http://<YOUR_PC_IP>:8080` in Chrome on your phone.
-4. The viewport automatically clamps to the **Close-Up Bust portrait frame**, enabling touch interaction (headpat / visor poke) and gyroscope shake detection.
 
 ---
 
-## Visor Emissive Shader Atlas (`[visor:...]`)
+## 2. Android Mobile Companion (Foreground Service)
+
+The Android companion (`android_companion/`) is designed as a persistent background daemon:
+
+- **Foreground Daemon (`CynForegroundService`)**:
+  * Persistent notification: `PROJECT CYN // Absolute Solver Daemon (Active & Connected)`.
+  * Runs uninterrupted in the background even when the phone screen is locked.
+  * Auto-starts on phone reboot via `CynBootReceiver`.
+- **Sensors & Real-Time Telemetry**:
+  * `Sensor.TYPE_ACCELEROMETER`: Detects sudden physical chassis turbulence ($\Delta > 20 \text{ m/s}^2$) and dispatches `[sensor:gyro_shake]`.
+  * `BatteryManager`: Monitors battery levels and dispatches `[sensor:battery_low]` when $<20\%$.
+- **3D Avatar WebView**:
+  * Hardware-accelerated WebGL viewport locked to the **Close-Up Bust portrait frame**.
+  * Interactive cranial touch (`[touch:headpat]`) and glass poke (`[touch:visor_poke]`).
+
+### Compiling and Installing the APK
+Ready-to-install debug/release APK is located at:
+```
+releases/CYN-Companion-v1.0.apk
+```
+Or compile fresh with Gradle:
+```cmd
+scripts\build_android_apk.bat
+```
+
+---
+
+## 3. GitHub Release & Simulator Engine
+
+For demonstration and testing on GitHub without needing a real microphone or API key:
+
+### Run the Offline Simulator
+Simulates all 10 Golden Benchmark Scenarios, tag parsing, sensor hooks, and audio parameters:
+```cmd
+scripts\run_simulator.bat
+```
+Or:
+```cmd
+python simulator/cyn_simulator.py
+```
+
+### GitHub Actions CI/CD (`.github/workflows/cyn_release.yml`)
+When pushed to GitHub:
+1. Compiles Windows desktop service executable (`CYN_Desktop_Service_Windows.zip`).
+2. Compiles Android APK (`app-debug.apk` / `app-release.apk`).
+3. Runs the automated verification suite.
+4. Publishes GitHub Releases with release assets attached automatically on git tag push (`v*`).
+
+---
+
+## 4. Visor Emissive Shader Atlas (`[visor:...]`)
 
 The visor plane renders an unlit emissive procedural shader atlas:
 | Index | Tag | Visual Description |
@@ -92,18 +141,10 @@ The visor plane renders an unlit emissive procedural shader atlas:
 
 ---
 
-## Real-Time Animation Queue Manager Priority
-
-- **Level 1 (Interrupt/Emergency)**: `[visor:solver_x]`, `[anim:head_spin_180_horror]`, Safety rejections. Clears all queues instantly, plays immediately.
-- **Level 2 (Expressive Gestures)**: `[anim:head_tilt_45_l/r]`, `[anim:reach_forward]`, `[anim:creepy_curtsy]`, `[anim:crawl_closer]`. FIFO sequence with smooth cross-fade.
-- **Level 3 (Ambient Idle Loops)**: `[anim:idle_sway]`, breathing dynamics. Suppressed while Level 1 or 2 is active.
-- **Interpolation**: Bone transforms interpolate using Slerp at `t = 250ms`. Glitch snaps (`[anim:head_twitch_jitter]`) snap at `t = 0ms` with added Gaussian noise.
-
----
-
-## Diagnostics and Testing
+## 5. Diagnostics and Testing
 
 To verify all parsers, safety gate, visor mapping, and mobile telemetry:
 ```cmd
 python scripts\test_dsp_parser.py
 ```
+All tests verify 100% compliance with Section 1 through 8.

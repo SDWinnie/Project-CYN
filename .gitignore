@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+build/
+dist/
+.gradle/
+android_companion/.gradle/
+android_companion/app/build/
+android_companion/local.properties
+*.tmp
+.tmp_audio/
+releases/
